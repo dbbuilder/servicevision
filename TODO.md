@@ -27,7 +27,13 @@
   - [x] Process invitee.created and canceled events
   - [x] Send meeting confirmation/cancellation emails
   - [ ] NOTE: Tests need environment setup fix
-- [ ] HIGH: Create drawing service for winner selection
+- [x] COMPLETED: Create drawing service for winner selection - 2024-01-27
+  - [x] Monthly drawing creation and management
+  - [x] Lead entry with duplicate prevention
+  - [x] Random winner selection
+  - [x] Winner email notifications
+  - [x] Drawing statistics tracking
+  - [ ] NOTE: Tests need environment setup fix
 
 ### State Management (Pinia)
 - [x] COMPLETED: Chat store with tests (23/23 passing) - 2024-01-27
@@ -122,9 +128,9 @@
 - Will need production API keys before launch
 
 ## Progress Metrics
-- Total Tests: 140 (128 + 12 Calendly tests)
-- Passing Tests: 127 (Calendly tests pending environment fix)
+- Total Tests: 160 (140 + 20 Drawing tests)
+- Passing Tests: 127 (Backend tests pending environment fix)
 - Test Coverage: ~80%
-- Completed Tasks: 14/50+
+- Completed Tasks: 16/50+
 - In Progress: 0
 - Blocked: 1 (OpenAI API key)
