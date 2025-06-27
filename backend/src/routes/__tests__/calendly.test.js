@@ -1,14 +1,30 @@
 const request = require('supertest');
 const express = require('express');
-const { Lead } = require('../../models');
-const { logger } = require('../../utils/logger');
-const calendlyRouter = require('../calendly');
 
-// Mock dependencies
+// Mock dependencies before requiring modules that use them
 jest.mock('../../models');
 jest.mock('../../utils/logger');
 jest.mock('../../services/emailService');
+jest.mock('../../config/environment', () => ({
+  getConfig: jest.fn(() => ({
+    SENDGRID_API_KEY: 'test-key',
+    SENDGRID_FROM_EMAIL: 'test@test.com',
+    NODE_ENV: 'test',
+    PORT: 3000,
+    ENABLE_REDIS: false
+  })),
+  loadEnvironmentConfig: jest.fn(() => ({
+    SENDGRID_API_KEY: 'test-key',
+    SENDGRID_FROM_EMAIL: 'test@test.com',
+    NODE_ENV: 'test',
+    PORT: 3000,
+    ENABLE_REDIS: false
+  }))
+}));
 
+const { Lead } = require('../../models');
+const logger = require('../../utils/logger');
+const calendlyRouter = require('../calendly');
 const emailService = require('../../services/emailService');
 
 describe('Calendly Webhook Handler', () => {
@@ -20,8 +36,6 @@ describe('Calendly Webhook Handler', () => {
     app.use('/webhooks/calendly', calendlyRouter);
     
     jest.clearAllMocks();
-    logger.error.mockImplementation(() => {});
-    logger.info.mockImplementation(() => {});
   });
 
   describe('POST /webhooks/calendly', () => {

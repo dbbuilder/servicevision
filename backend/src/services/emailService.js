@@ -454,6 +454,185 @@ class EmailService {
     }
 
     /**
+     * Send meeting confirmation email
+     */
+    async sendMeetingConfirmation(data) {
+        this.refreshConfig();
+        try {
+            const { email, name, meetingDate, meetingType } = data;
+            
+            const html = this.getMeetingConfirmationTemplate({
+                name: name || 'Valued Client',
+                meetingDate,
+                meetingType: meetingType || 'Consultation'
+            });
+            const text = this.stripHtml(html);
+
+            const msg = {
+                to: email,
+                from: {
+                    email: this.config.SENDGRID_FROM_EMAIL,
+                    name: 'ServiceVision Team'
+                },
+                subject: `Meeting Confirmed - ${meetingType || 'Consultation'}`,
+                html,
+                text
+            };
+
+            if (this.config.NODE_ENV === 'development') {
+                logger.info('Development mode: Meeting confirmation would be sent', { to: email });
+                return { success: true, development: true };
+            }
+
+            await sgMail.send(msg);
+            logger.info(`Meeting confirmation sent to ${email}`);
+            
+            return { success: true };
+        } catch (error) {
+            logger.error('Error sending meeting confirmation:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Send meeting cancellation email
+     */
+    async sendMeetingCancellation(data) {
+        this.refreshConfig();
+        try {
+            const { email, name, reason } = data;
+            
+            const html = this.getMeetingCancellationTemplate({
+                name: name || 'Valued Client',
+                reason
+            });
+            const text = this.stripHtml(html);
+
+            const msg = {
+                to: email,
+                from: {
+                    email: this.config.SENDGRID_FROM_EMAIL,
+                    name: 'ServiceVision Team'
+                },
+                subject: 'Meeting Canceled - ServiceVision',
+                html,
+                text
+            };
+
+            if (this.config.NODE_ENV === 'development') {
+                logger.info('Development mode: Meeting cancellation would be sent', { to: email });
+                return { success: true, development: true };
+            }
+
+            await sgMail.send(msg);
+            logger.info(`Meeting cancellation sent to ${email}`);
+            
+            return { success: true };
+        } catch (error) {
+            logger.error('Error sending meeting cancellation:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Get meeting confirmation template
+     */
+    getMeetingConfirmationTemplate(data) {
+        const { name, meetingDate, meetingType } = data;
+        const safeName = this.escapeHtml(name);
+        const safeMeetingType = this.escapeHtml(meetingType);
+        const formattedDate = new Date(meetingDate).toLocaleString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            timeZoneName: 'short'
+        });
+        const safeDate = this.escapeHtml(formattedDate);
+        
+        return `
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #10B981; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { padding: 30px; background-color: #f9f9f9; }
+        .meeting-details { background-color: white; padding: 20px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #10B981; }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Meeting Confirmed!</h1>
+        </div>
+        <div class="content">
+            <h2>Hi ${safeName},</h2>
+            <p>Your ${safeMeetingType} has been confirmed!</p>
+            <div class="meeting-details">
+                <h3>Meeting Details</h3>
+                <p><strong>Date & Time:</strong> ${safeDate}</p>
+                <p><strong>Type:</strong> ${safeMeetingType}</p>
+            </div>
+            <p>We look forward to speaking with you!</p>
+            <p>If you need to reschedule or cancel, please use the link in your Calendly confirmation email.</p>
+        </div>
+        <div class="footer">
+            <p>ServiceVision - Transforming Business with AI</p>
+        </div>
+    </div>
+</body>
+</html>`;
+    }
+
+    /**
+     * Get meeting cancellation template
+     */
+    getMeetingCancellationTemplate(data) {
+        const { name, reason } = data;
+        const safeName = this.escapeHtml(name);
+        const safeReason = reason ? this.escapeHtml(reason) : '';
+        
+        return `
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #EF4444; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { padding: 30px; background-color: #f9f9f9; }
+        .cta { background-color: #4F46E5; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 20px 0; }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Meeting Canceled</h1>
+        </div>
+        <div class="content">
+            <h2>Hi ${safeName},</h2>
+            <p>Your meeting has been canceled${safeReason ? ` (Reason: ${safeReason})` : ''}.</p>
+            <p>If you'd like to reschedule, we'd love to find another time that works for you.</p>
+            <center>
+                <a href="https://calendly.com/servicevision" class="cta">Reschedule Meeting</a>
+            </center>
+            <p>Or simply reply to this email and we'll help you find a new time.</p>
+        </div>
+        <div class="footer">
+            <p>ServiceVision - Transforming Business with AI</p>
+        </div>
+    </div>
+</body>
+</html>`;
+    }
+
+    /**
      * Clear email queue (for testing)
      */
     clearQueue() {
