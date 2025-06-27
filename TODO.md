@@ -27,7 +27,7 @@
 
 ### State Management (Pinia)
 - [x] COMPLETED: Chat store with tests (23/23 passing) - 2024-01-27
-- [ ] HIGH: Create lead store with tests
+- [x] COMPLETED: Lead store with tests (24/24 passing) - 2024-01-27
 - [ ] MEDIUM: Create UI/UX store (modals, notifications)
 
 ## Phase 3: AI Integration (Week 3)
@@ -118,9 +118,9 @@
 - Will need production API keys before launch
 
 ## Progress Metrics
-- Total Tests: 104
-- Passing Tests: 103
+- Total Tests: 128
+- Passing Tests: 127
 - Test Coverage: ~80%
-- Completed Tasks: 12/50+
+- Completed Tasks: 13/50+
 - In Progress: 0
 - Blocked: 1 (OpenAI API key)
