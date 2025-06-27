@@ -211,9 +211,18 @@ describe('Email Service', () => {
     });
 
     test('should wait between retries with exponential backoff', async () => {
-      jest.useFakeTimers();
+      // Track delays
+      const delays = [];
+      const originalSetTimeout = global.setTimeout;
+      
+      // Mock setTimeout to capture delays
+      global.setTimeout = jest.fn((callback, delay) => {
+        delays.push(delay);
+        return originalSetTimeout(callback, 0); // Execute immediately
+      });
       
       sgMail.send
+        .mockRejectedValueOnce(new Error('Temporary failure'))
         .mockRejectedValueOnce(new Error('Temporary failure'))
         .mockResolvedValueOnce([{ statusCode: 202, headers: { 'x-message-id': 'msg-123' } }]);
 
@@ -223,19 +232,18 @@ describe('Email Service', () => {
         content: 'Test content'
       };
 
-      const promise = emailService.sendWithRetry(emailData);
+      const result = await emailService.sendWithRetry(emailData);
       
-      // Wait for all timers to complete
-      jest.runAllTimers();
-      
-      const result = await promise;
-      
-      // Should have made 2 attempts with delay between them
-      expect(sgMail.send).toHaveBeenCalledTimes(2);
+      // Should have made 3 attempts
+      expect(sgMail.send).toHaveBeenCalledTimes(3);
       expect(result.success).toBe(true);
-      expect(result.attempts).toBe(2);
+      expect(result.attempts).toBe(3);
       
-      jest.useRealTimers();
+      // Check exponential backoff delays
+      expect(delays).toEqual([1000, 2000]); // 2^0 * 1000, 2^1 * 1000
+      
+      // Restore original setTimeout
+      global.setTimeout = originalSetTimeout;
     });
   });
 
