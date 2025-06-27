@@ -8,7 +8,15 @@ const logger = require('../utils/logger');
 
 const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || 'development';
-const config = require('../config/database')[env];
+let config;
+
+// Load appropriate config based on environment
+if (env === 'test') {
+    config = require('../config/database.test');
+} else {
+    config = require('../config/database')[env];
+}
+
 const db = {};
 
 // Initialize Sequelize

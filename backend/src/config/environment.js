@@ -24,6 +24,11 @@ let cachedConfig = null;
  * @throws {Error} If validation fails
  */
 function validateEnvironment(config) {
+  // Skip validation in test environment
+  if (config.NODE_ENV === 'test') {
+    return;
+  }
+  
   // Check required variables
   for (const varName of REQUIRED_VARS) {
     if (!config[varName]) {
@@ -53,15 +58,15 @@ function loadEnvironmentConfig() {
     PORT: parseInt(process.env.PORT, 10) || 3000,
     
     // Database
-    DATABASE_URL: process.env.DATABASE_URL,
+    DATABASE_URL: process.env.DATABASE_URL || (process.env.NODE_ENV === 'test' ? 'sqlite::memory:' : undefined),
     
     // External services
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-    SENDGRID_API_KEY: process.env.SENDGRID_API_KEY,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY || (process.env.NODE_ENV === 'test' ? 'test-key' : undefined),
+    SENDGRID_API_KEY: process.env.SENDGRID_API_KEY || (process.env.NODE_ENV === 'test' ? 'test-key' : undefined),
     SENDGRID_FROM_EMAIL: process.env.SENDGRID_FROM_EMAIL || 'hello@servicevision.com',
     
     // Security
-    JWT_SECRET: process.env.JWT_SECRET,
+    JWT_SECRET: process.env.JWT_SECRET || (process.env.NODE_ENV === 'test' ? 'test-secret' : undefined),
     JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',
     
     // Session/Redis (optional)
