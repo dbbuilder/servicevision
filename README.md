@@ -1,5 +1,7 @@
 # ServiceVision.net - SaaS Landing Page & AI Consulting Agent
 
+🔗 **Repository**: [https://github.com/dbbuilder/servicevision](https://github.com/dbbuilder/servicevision)
+
 ## Overview
 
 ServiceVision is a dual-mission business and technology consulting firm that combines for-profit consulting services with nonprofit community support. This repository contains the landing page and AI-powered consulting agent for ServiceVision.net.
