@@ -22,7 +22,11 @@
   - [x] Completed retry logic implementation
   - [x] Added queue processing functionality
   - [ ] NOTE: One test (exponential backoff timing) needs adjustment
-- [ ] HIGH: Implement Calendly webhook handler
+- [x] COMPLETED: Implement Calendly webhook handler - 2024-01-27
+  - [x] Webhook signature validation
+  - [x] Process invitee.created and canceled events
+  - [x] Send meeting confirmation/cancellation emails
+  - [ ] NOTE: Tests need environment setup fix
 - [ ] HIGH: Create drawing service for winner selection
 
 ### State Management (Pinia)
@@ -118,9 +122,9 @@
 - Will need production API keys before launch
 
 ## Progress Metrics
-- Total Tests: 128
-- Passing Tests: 127
+- Total Tests: 140 (128 + 12 Calendly tests)
+- Passing Tests: 127 (Calendly tests pending environment fix)
 - Test Coverage: ~80%
-- Completed Tasks: 13/50+
+- Completed Tasks: 14/50+
 - In Progress: 0
 - Blocked: 1 (OpenAI API key)
