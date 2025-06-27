@@ -1,7 +1,7 @@
 // PostCSS Configuration
 // Required for Tailwind CSS
 
-export default {
+module.exports = {
   plugins: {
     tailwindcss: {},
     autoprefixer: {},
