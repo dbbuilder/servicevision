@@ -5,21 +5,14 @@ const sgMail = require('@sendgrid/mail');
 const logger = require('../utils/logger');
 const { getConfig } = require('../config/environment');
 
-// Initialize SendGrid on first use
-let initialized = false;
-function initializeSendGrid() {
-    if (!initialized) {
-        try {
-            const config = getConfig();
-            if (config && config.SENDGRID_API_KEY) {
-                sgMail.setApiKey(config.SENDGRID_API_KEY);
-                initialized = true;
-            }
-        } catch (error) {
-            // Initialization failed, will try again on next use
-            logger.warn('SendGrid initialization failed:', error.message);
-        }
+// Initialize SendGrid on module load if possible
+try {
+    const config = getConfig();
+    if (config && config.SENDGRID_API_KEY) {
+        sgMail.setApiKey(config.SENDGRID_API_KEY);
     }
+} catch (error) {
+    // Will retry on first use
 }
 
 // Email queue for failed sends
@@ -27,22 +20,39 @@ const emailQueue = [];
 
 class EmailService {
     constructor() {
-        this.config = getConfig();
-        this.templates = this.initializeTemplates();
+        this.refreshConfig();
+        this.initializeSendGrid();
+    }
+
+    refreshConfig() {
+        this.config = getConfig() || {};
+        // Ensure required fields have defaults
+        if (!this.config.SENDGRID_FROM_EMAIL) {
+            this.config.SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || 'noreply@servicevision.com';
+        }
+    }
+
+    /**
+     * Initialize SendGrid with API key
+     */
+    initializeSendGrid() {
+        if (this.config.SENDGRID_API_KEY) {
+            sgMail.setApiKey(this.config.SENDGRID_API_KEY);
+        }
     }
 
     /**
      * Send welcome email to new lead
      */
     async sendWelcomeEmail(recipient) {
-        initializeSendGrid();
+        this.refreshConfig();
         try {
             const { email, name } = recipient;
             const subject = name 
                 ? `Welcome to ServiceVision, ${name}!` 
                 : 'Welcome to ServiceVision!';
 
-            const html = this.templates.welcome({ name: name || 'there' });
+            const html = this.getWelcomeTemplate({ name: name || 'there' });
             const text = this.stripHtml(html);
 
             const msg = {
@@ -79,7 +89,7 @@ class EmailService {
      * Send lead notification with executive summary
      */
     async sendLeadNotification(leadData) {
-        initializeSendGrid();
+        this.refreshConfig();
         try {
             const { email, name, company, executiveSummary, calendarLink } = leadData;
             
@@ -90,7 +100,7 @@ class EmailService {
                 calendarLink
             };
 
-            const html = this.templates.leadNotification(templateData);
+            const html = this.getLeadNotificationTemplate(templateData);
             const text = this.stripHtml(html);
 
             const msg = {
@@ -123,7 +133,7 @@ class EmailService {
      * Send drawing winner notification
      */
     async sendDrawingWinnerNotification(winnerData) {
-        initializeSendGrid();
+        this.refreshConfig();
         try {
             const { email, name, prizeDetails } = winnerData;
             
@@ -134,7 +144,7 @@ class EmailService {
                 prizeDuration: prizeDetails.duration
             };
 
-            const html = this.templates.drawingWinner(templateData);
+            const html = this.getDrawingWinnerTemplate(templateData);
             const text = this.stripHtml(html);
 
             const msg = {
@@ -167,7 +177,7 @@ class EmailService {
      * Send email with retry logic
      */
     async sendWithRetry(emailData, maxRetries = 3) {
-        initializeSendGrid();
+        this.refreshConfig();
         let attempts = 0;
         let lastError;
 
@@ -272,15 +282,19 @@ class EmailService {
      * Get email templates
      */
     getEmailTemplates() {
-        return this.templates;
+        return {
+            welcome: this.getWelcomeTemplate.bind(this),
+            leadNotification: this.getLeadNotificationTemplate.bind(this),
+            drawingWinner: this.getDrawingWinnerTemplate.bind(this)
+        };
     }
 
     /**
-     * Initialize email templates
+     * Get welcome email template
      */
-    initializeTemplates() {
-        return {
-            welcome: (data) => `
+    getWelcomeTemplate(data) {
+        const safeName = this.escapeHtml(data.name);
+        return `
 <!DOCTYPE html>
 <html>
 <head>
@@ -299,7 +313,7 @@ class EmailService {
             <h1>Welcome to ServiceVision</h1>
         </div>
         <div class="content">
-            <h2>Hello ${data.name},</h2>
+            <h2>Hello ${safeName},</h2>
             <p>Welcome to ServiceVision! We're thrilled to have you join us on your journey to transform your business with AI-powered solutions.</p>
             <p>Our team of experts is ready to help you achieve your goals through innovative consulting and cutting-edge technology.</p>
             <center>
@@ -312,9 +326,19 @@ class EmailService {
         </div>
     </div>
 </body>
-</html>`,
+</html>`;
+    }
 
-            leadNotification: (data) => `
+    /**
+     * Get lead notification template
+     */
+    getLeadNotificationTemplate(data) {
+        const safeName = this.escapeHtml(data.name);
+        const safeCompany = data.company ? this.escapeHtml(data.company) : '';
+        const safeSummary = data.executiveSummary ? this.escapeHtml(data.executiveSummary) : '';
+        const safeCalendarLink = data.calendarLink ? this.escapeHtml(data.calendarLink) : '';
+        
+        return `
 <!DOCTYPE html>
 <html>
 <head>
@@ -334,18 +358,18 @@ class EmailService {
             <h1>Your Consultation Summary</h1>
         </div>
         <div class="content">
-            <h2>Hello ${data.name},</h2>
-            <p>Thank you for your interest in ServiceVision${data.company ? ` on behalf of ${data.company}` : ''}.</p>
-            ${data.executiveSummary ? `
+            <h2>Hello ${safeName},</h2>
+            <p>Thank you for your interest in ServiceVision${safeCompany ? ` on behalf of ${safeCompany}` : ''}.</p>
+            ${safeSummary ? `
             <div class="summary">
                 <h3>Executive Summary</h3>
-                <p>${data.executiveSummary}</p>
+                <p>${safeSummary}</p>
             </div>
             ` : ''}
-            ${data.calendarLink ? `
+            ${safeCalendarLink ? `
             <p>Ready to take the next step? Schedule your free consultation:</p>
             <center>
-                <a href="${data.calendarLink}" class="cta">Schedule Your Consultation</a>
+                <a href="${safeCalendarLink}" class="cta">Schedule Your Consultation</a>
             </center>
             ` : ''}
         </div>
@@ -354,9 +378,19 @@ class EmailService {
         </div>
     </div>
 </body>
-</html>`,
+</html>`;
+    }
 
-            drawingWinner: (data) => `
+    /**
+     * Get drawing winner template
+     */
+    getDrawingWinnerTemplate(data) {
+        const safeName = this.escapeHtml(data.name);
+        const safePrizeType = this.escapeHtml(data.prizeType);
+        const safePrizeValue = this.escapeHtml(String(data.prizeValue));
+        const safePrizeDuration = this.escapeHtml(data.prizeDuration);
+        
+        return `
 <!DOCTYPE html>
 <html>
 <head>
@@ -376,13 +410,13 @@ class EmailService {
             <h1>🎉 Congratulations!</h1>
         </div>
         <div class="content">
-            <h2>Dear ${data.name},</h2>
+            <h2>Dear ${safeName},</h2>
             <p>You have won our monthly drawing!</p>
             <div class="prize">
                 <h3>Your Prize</h3>
-                <p><strong>${data.prizeType}</strong></p>
-                <p>Value: $${data.prizeValue}</p>
-                <p>Duration: ${data.prizeDuration}</p>
+                <p><strong>${safePrizeType}</strong></p>
+                <p>Value: $${safePrizeValue}</p>
+                <p>Duration: ${safePrizeDuration}</p>
             </div>
             <p>Our team will contact you within 24 hours to schedule your free consultation.</p>
             <center>
@@ -394,8 +428,7 @@ class EmailService {
         </div>
     </div>
 </body>
-</html>`)
-        };
+</html>`;
     }
 
     /**
@@ -417,16 +450,14 @@ class EmailService {
             "'": '&#x27;',
             '/': '&#x2F;'
         };
-        return str.replace(/[&<>"'/]/g, (char) => escapeMap[char]);
+        return String(str).replace(/[&<>"'/]/g, (char) => escapeMap[char]);
     }
-    
+
     /**
-     * Safe template rendering
+     * Clear email queue (for testing)
      */
-    renderTemplate(templateFn, data) {
-        // Since we're using template literals, we need a different approach
-        // For now, return the template as-is and handle escaping in the template itself
-        return templateFn;
+    clearQueue() {
+        emailQueue.length = 0;
     }
 }
 
