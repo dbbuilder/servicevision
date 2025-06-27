@@ -1,4 +1,4 @@
-const { ChatSession, Lead } = require('../models');
+const { ChatSession, Lead, Message } = require('../models');
 const chatService = require('./chatService');
 const logger = require('../utils/logger');
 
@@ -76,7 +76,12 @@ class WebSocketService {
         const { sessionId } = data;
         
         const session = await ChatSession.findOne({
-          where: { sessionId }
+          where: { sessionId },
+          include: [{
+            model: Message,
+            as: 'messages',
+            order: [['timestamp', 'ASC']]
+          }]
         });
 
         if (session) {
@@ -85,9 +90,26 @@ class WebSocketService {
           this.sessions.set(sessionId, { socket, session });
           socket.join(`session:${sessionId}`);
 
+          // Convert messages to conversation history format
+          const conversationHistory = session.messages.map(msg => ({
+            id: msg.id,
+            role: msg.role,
+            content: msg.content,
+            timestamp: msg.timestamp,
+            quickReplies: msg.quickReplies,
+            isDelivered: msg.isDelivered,
+            isRead: msg.isRead
+          }));
+
           socket.emit('session_restored', {
-            conversationHistory: session.conversationHistory || []
+            conversationHistory
           });
+          
+          // Mark unread messages as delivered
+          const undeliveredMessages = session.messages.filter(m => !m.isDelivered);
+          for (const msg of undeliveredMessages) {
+            await msg.markAsDelivered();
+          }
         }
       } catch (error) {
         logger.error('Session restore error:', error);
@@ -115,14 +137,35 @@ class WebSocketService {
 
         const { message, timestamp } = data;
         
+        // Save user message
+        const userMessage = await Message.create({
+          chatSessionId: socket.session.id,
+          role: 'user',
+          content: message,
+          timestamp: timestamp ? new Date(timestamp) : new Date()
+        });
+        
         // Process message with AI
         const response = await chatService.processMessage(
           socket.session,
           message
         );
 
+        // Save assistant response
+        const assistantMessage = await Message.create({
+          chatSessionId: socket.session.id,
+          role: 'assistant',
+          content: response.message,
+          quickReplies: response.quickReplies || [],
+          metadata: {
+            completionRate: response.completionRate,
+            processingTime: Date.now() - new Date(userMessage.timestamp).getTime()
+          },
+          timestamp: new Date()
+        });
+
         // Update session
-        socket.session.totalMessages = (socket.session.totalMessages || 0) + 1;
+        socket.session.totalMessages = (socket.session.totalMessages || 0) + 2;
         socket.session.conversationHistory = response.conversationHistory;
         socket.session.identifiedNeeds = response.identifiedNeeds;
         socket.session.recommendedServices = response.recommendedServices;
@@ -130,16 +173,20 @@ class WebSocketService {
         await socket.session.save();
 
         // Update metrics
-        this.metrics.totalMessages++;
+        this.metrics.totalMessages += 2;
 
-        // Send response
+        // Send response with message ID
         socket.emit('chat_response', {
+          id: assistantMessage.id,
           message: response.message,
           quickReplies: response.quickReplies,
           completionRate: response.completionRate,
           isComplete: response.isComplete,
-          timestamp: new Date().toISOString()
+          timestamp: assistantMessage.timestamp.toISOString()
         });
+        
+        // Mark assistant message as delivered
+        await assistantMessage.markAsDelivered();
 
       } catch (error) {
         logger.error('Message processing error:', error);
@@ -150,12 +197,37 @@ class WebSocketService {
       }
     });
 
-    socket.on('message_ack', (data) => {
+    socket.on('message_ack', async (data) => {
       const { messageId } = data;
-      socket.emit('message_delivered', {
-        messageId,
-        timestamp: new Date().toISOString()
-      });
+      
+      try {
+        // Update message delivery status
+        const message = await Message.findByPk(messageId);
+        if (message) {
+          await message.markAsDelivered();
+        }
+        
+        socket.emit('message_delivered', {
+          messageId,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        logger.error('Error acknowledging message:', error);
+      }
+    });
+
+    socket.on('message_read', async (data) => {
+      const { messageId } = data;
+      
+      try {
+        // Update message read status
+        const message = await Message.findByPk(messageId);
+        if (message) {
+          await message.markAsRead();
+        }
+      } catch (error) {
+        logger.error('Error marking message as read:', error);
+      }
     });
   }
 
