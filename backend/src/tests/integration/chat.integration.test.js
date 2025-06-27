@@ -4,7 +4,7 @@ const Client = require('socket.io-client');
 const app = require('../../app');
 const { sequelize, ChatSession, Lead, Message } = require('../../models');
 const chatService = require('../../services/chatService');
-const websocketService = require('../../services/websocketService');
+const WebSocketService = require('../../services/websocketService');
 const summaryService = require('../../services/summaryService');
 
 describe('Chat System Integration Tests', () => {
@@ -28,7 +28,8 @@ describe('Chat System Integration Tests', () => {
     });
     
     // Initialize WebSocket service
-    websocketService.initialize(serverSocket);
+    const websocketService = new WebSocketService(serverSocket);
+    websocketService.initialize();
   });
 
   afterAll(async () => {

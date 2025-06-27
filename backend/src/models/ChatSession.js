@@ -37,6 +37,66 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.JSON,
             defaultValue: {},
             field: 'metadata'
+        },
+        state: {
+            type: DataTypes.JSON,
+            defaultValue: {},
+            field: 'state'
+        },
+        conversationHistory: {
+            type: DataTypes.JSON,
+            defaultValue: [],
+            field: 'conversation_history'
+        },
+        identifiedNeeds: {
+            type: DataTypes.JSON,
+            defaultValue: [],
+            field: 'identified_needs'
+        },
+        recommendedServices: {
+            type: DataTypes.JSON,
+            defaultValue: [],
+            field: 'recommended_services'
+        },
+        completionRate: {
+            type: DataTypes.FLOAT,
+            defaultValue: 0,
+            field: 'completion_rate'
+        },
+        totalMessages: {
+            type: DataTypes.INTEGER,
+            defaultValue: 0,
+            field: 'total_messages'
+        },
+        startTime: {
+            type: DataTypes.DATE,
+            defaultValue: DataTypes.NOW,
+            field: 'start_time'
+        },
+        endTime: {
+            type: DataTypes.DATE,
+            allowNull: true,
+            field: 'end_time'
+        },
+        isComplete: {
+            type: DataTypes.BOOLEAN,
+            defaultValue: false,
+            field: 'is_complete'
+        },
+        summaryGeneratedAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
+            field: 'summary_generated_at'
+        },
+        summaryEmailSent: {
+            type: DataTypes.BOOLEAN,
+            defaultValue: false,
+            field: 'summary_email_sent'
+        },
+        summaryEmailSentAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
+            field: 'summary_email_sent_at'
         }
     }, {
         tableName: 'chat_sessions',

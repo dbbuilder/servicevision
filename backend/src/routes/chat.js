@@ -6,52 +6,45 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../utils/logger');
 const chatService = require('../services/chatService');
-const { Lead, ChatSession } = require('../models');
+const summaryService = require('../services/summaryService');
+const conversationStateService = require('../services/conversationStateService');
+const { Lead, ChatSession, Message } = require('../models');
 
 /**
- * Start a new chat session
- * POST /api/chat/start
+ * Create a new chat session
+ * POST /api/chat/session
  */
-router.post('/start', async (req, res, next) => {
+router.post('/session', async (req, res, next) => {
     try {
-        const { email, organizationName } = req.body;
-        
-        // Validate required fields
-        if (!email) {
-            return res.status(400).json({
-                error: 'Email is required to start a chat session'
-            });
-        }
-
-        // Find or create lead
-        const [lead, created] = await Lead.findOrCreate({
-            where: { email },
-            defaults: {
-                email,
-                organizationName,
-                source: 'ai-chat'
-            }
-        });
-        
-        // Create new chat session
+        const { email } = req.body;
         const sessionId = uuidv4();
+        
+        // Check for existing lead if email provided
+        let lead = null;
+        if (email) {
+            lead = await Lead.findOne({ where: { email } });
+        }
+        
+        // Create new session
         const chatSession = await ChatSession.create({
-            leadId: lead.id,
             sessionId,
-            startTime: new Date()
+            leadId: lead?.id,
+            state: conversationStateService.getInitialState(),
+            conversationHistory: [],
+            messages: [],
+            completionRate: 0
         });
-
-        // Initialize chat with AI
-        const initialMessage = await chatService.getInitialMessage(lead, chatSession);
-
-        logger.info(`Chat session started: ${sessionId} for lead: ${lead.id}`);
-
-        res.json({
+        
+        logger.info('Chat session created', { sessionId, hasLead: !!lead });
+        
+        res.status(201).json({
             sessionId,
-            leadId: lead.id,
-            message: initialMessage,
-            isNewLead: created
+            lead: lead ? {
+                name: lead.name,
+                organizationName: lead.organizationName
+            } : null
         });
+        
     } catch (error) {
         next(error);
     }
@@ -112,46 +105,166 @@ router.post('/message', async (req, res, next) => {
 });
 
 /**
- * Get executive summary for a chat session
- * GET /api/chat/:sessionId/summary
+ * Get session details
+ * GET /api/chat/session/:sessionId
  */
-router.get('/:sessionId/summary', async (req, res, next) => {
+router.get('/session/:sessionId', async (req, res, next) => {
     try {
         const { sessionId } = req.params;
-
-        const chatSession = await ChatSession.findOne({
+        
+        const session = await ChatSession.findOne({
             where: { sessionId },
-            include: [{
-                model: Lead,
-                as: 'lead'
+            include: [{ model: Lead, as: 'lead' }]
+        });
+        
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+        
+        res.json({
+            sessionId: session.sessionId,
+            state: session.state,
+            completionRate: session.completionRate,
+            leadQualified: session.leadQualified,
+            lead: session.lead
+        });
+        
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * Get conversation history
+ * GET /api/chat/session/:sessionId/history
+ */
+router.get('/session/:sessionId/history', async (req, res, next) => {
+    try {
+        const { sessionId } = req.params;
+        
+        const session = await ChatSession.findOne({
+            where: { sessionId },
+            include: [{ 
+                model: Message, 
+                as: 'chatMessages',
+                order: [['timestamp', 'ASC']]
             }]
         });
+        
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+        
+        res.json({
+            sessionId: session.sessionId,
+            messages: session.chatMessages || []
+        });
+        
+    } catch (error) {
+        next(error);
+    }
+});
 
-        if (!chatSession) {
-            return res.status(404).json({
-                error: 'Chat session not found'
+/**
+ * Get executive summary
+ * GET /api/chat/session/:sessionId/summary
+ */
+router.get('/session/:sessionId/summary', async (req, res, next) => {
+    try {
+        const { sessionId } = req.params;
+        
+        const session = await ChatSession.findOne({
+            where: { sessionId },
+            include: [{ model: Lead, as: 'lead' }]
+        });
+        
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+        
+        // Generate summary
+        const summary = await summaryService.generateExecutiveSummary(session);
+        
+        res.json({
+            sessionId: session.sessionId,
+            summary: summary.text,
+            html: summary.html,
+            data: summary.data
+        });
+        
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * Send executive summary via email
+ * POST /api/chat/session/:sessionId/send-summary
+ */
+router.post('/session/:sessionId/send-summary', async (req, res, next) => {
+    try {
+        const { sessionId } = req.params;
+        
+        const session = await ChatSession.findOne({
+            where: { sessionId },
+            include: [{ model: Lead, as: 'lead' }]
+        });
+        
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+        
+        if (!session.lead?.email) {
+            return res.status(400).json({ error: 'No email address available' });
+        }
+        
+        // Send summary email
+        const result = await summaryService.sendSummaryEmail(session);
+        
+        if (result.success) {
+            res.json({
+                success: true,
+                message: 'Summary sent successfully'
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                error: result.error || 'Failed to send summary'
             });
         }
+        
+    } catch (error) {
+        next(error);
+    }
+});
 
-        // Generate executive summary if not already created
-        if (!chatSession.executiveSummary) {
-            const summary = await chatService.generateExecutiveSummary(chatSession);
-            chatSession.executiveSummary = summary;
-            chatSession.isComplete = true;
-            chatSession.endTime = new Date();
-            await chatSession.save();
-        }
-
-        res.json({
-            summary: chatSession.executiveSummary,
-            identifiedNeeds: chatSession.identifiedNeeds,
-            recommendedServices: chatSession.recommendedServices,
-            lead: {
-                email: chatSession.lead.email,
-                organizationName: chatSession.lead.organizationName,
-                organizationType: chatSession.lead.organizationType
-            }
+/**
+ * Get lead qualification status
+ * GET /api/chat/session/:sessionId/qualification
+ */
+router.get('/session/:sessionId/qualification', async (req, res, next) => {
+    try {
+        const { sessionId } = req.params;
+        
+        const session = await ChatSession.findOne({
+            where: { sessionId }
         });
+        
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+        
+        // Evaluate qualification
+        const qualification = conversationStateService.evaluateQualification(session.state);
+        
+        res.json({
+            sessionId: session.sessionId,
+            qualified: qualification.isQualified,
+            score: qualification.score,
+            missingInfo: qualification.missingInfo,
+            readyForSales: qualification.isQualified && qualification.score > 0.7
+        });
+        
     } catch (error) {
         next(error);
     }
