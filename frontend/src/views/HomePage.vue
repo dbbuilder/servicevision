@@ -132,6 +132,15 @@
       </div>
     </section>
 
+    <!-- Testimonials Section -->
+    <Testimonials 
+      :testimonials="testimonials"
+      :max-display="3"
+      :show-view-all="true"
+      @view-all="handleViewAllTestimonials"
+      @testimonial-click="handleTestimonialClick"
+    />
+
     <!-- CTA Section -->
     <section class="py-20 bg-primary-900 text-white">
       <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -156,11 +165,74 @@
 import { useChatStore } from '@/stores/chat'
 import NavigationHeader from '@/components/NavigationHeader.vue'
 import ServiceGrid from '@/components/ServiceGrid.vue'
+import Testimonials from '@/components/Testimonials.vue'
 import AppFooter from '@/components/AppFooter.vue'
+import { ref } from 'vue'
 
 const chatStore = useChatStore()
 
+// Mock testimonials data - in production, this would come from an API
+const testimonials = ref([
+  {
+    id: 1,
+    name: 'John Smith',
+    role: 'CEO',
+    company: 'Tech Innovations Inc.',
+    content: 'ServiceVision transformed our AI strategy. Their expertise helped us reduce costs by 40% while improving efficiency.',
+    rating: 5,
+    image: null
+  },
+  {
+    id: 2,
+    name: 'Sarah Johnson',
+    role: 'Director of Operations',
+    company: 'Global Nonprofits United',
+    content: 'The team at ServiceVision understood our nonprofit needs perfectly. They delivered solutions that amplified our impact.',
+    rating: 5,
+    image: null
+  },
+  {
+    id: 3,
+    name: 'Michael Chen',
+    role: 'CTO',
+    company: 'StartupHub',
+    content: 'Outstanding AI consulting services. They helped us build a scalable ML pipeline that grew with our business.',
+    rating: 5,
+    image: null
+  },
+  {
+    id: 4,
+    name: 'Emily Rodriguez',
+    role: 'VP of Technology',
+    company: 'Healthcare Solutions Co.',
+    content: 'ServiceVision\'s dual mission approach aligned perfectly with our values. They delivered enterprise-grade solutions while supporting our community initiatives.',
+    rating: 5,
+    image: null
+  },
+  {
+    id: 5,
+    name: 'David Thompson',
+    role: 'Executive Director',
+    company: 'Community Development Fund',
+    content: 'As a nonprofit, we were thrilled to work with ServiceVision.org. Their pro bono consulting helped us modernize our entire data infrastructure.',
+    rating: 5,
+    image: null
+  }
+])
+
 function openChat() {
   chatStore.toggleChat()
+}
+
+function handleViewAllTestimonials() {
+  // In a real app, this might navigate to a dedicated testimonials page
+  // For now, we'll just open the chat
+  openChat()
+}
+
+function handleTestimonialClick(testimonial) {
+  // Could be used to show more details or open chat with context
+  console.log('Testimonial clicked:', testimonial)
+  openChat()
 }
 </script>
