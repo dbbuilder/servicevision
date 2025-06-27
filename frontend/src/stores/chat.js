@@ -1,186 +1,211 @@
 // Chat Store
 // Manages AI chat widget state and conversations
 
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import chatApi from '@/services/chatApi'
+import { defineStore } from 'pinia';
+import { ref, computed } from 'vue';
+import axios from 'axios';
 
 export const useChatStore = defineStore('chat', () => {
   // State
-  const isOpen = ref(false)
-  const isMinimized = ref(false)
-  const messages = ref([])
-  const sessionId = ref(null)
-  const leadId = ref(null)
-  const isLoading = ref(false)
-  const completionRate = ref(0)
-  const quickReplies = ref([])
-  const email = ref('')
-  const organizationName = ref('')
-  const hasStarted = ref(false)
+  const isOpen = ref(false);
+  const messages = ref([]);
+  const sessionId = ref(null);
+  const isLoading = ref(false);
+  const quickReplies = ref([]);
+  const userEmail = ref(null);
+  const isQualified = ref(false);
 
-  // Computed
-  const messageCount = computed(() => messages.value.length)
-  const isComplete = computed(() => completionRate.value >= 80)
+  // Getters
+  const hasActiveSession = computed(() => !!sessionId.value);
+  const messageCount = computed(() => messages.value.length);
+  const lastMessage = computed(() => 
+    messages.value.length > 0 ? messages.value[messages.value.length - 1] : null
+  );
+  const isWaitingForEmail = computed(() => {
+    if (userEmail.value) return false;
+    const lastMsg = lastMessage.value;
+    return !!(lastMsg && lastMsg.requiresEmail === true);
+  });
 
   // Actions
-  function toggleChat() {
-    isOpen.value = !isOpen.value
-    if (isOpen.value && !hasStarted.value && email.value) {
-      startChat()
+  async function openChat() {
+    isOpen.value = true;
+    
+    if (!sessionId.value) {
+      try {
+        const response = await axios.post('/api/chat/start');
+        sessionId.value = response.data.sessionId;
+        
+        // Add welcome message
+        addMessage(
+          response.data.welcomeMessage || 'Hello! How can I help you today?',
+          'assistant'
+        );
+      } catch (error) {
+        console.error('Failed to initialize chat session:', error);
+        // Fallback to local session
+        sessionId.value = `local-${Date.now()}`;
+        addMessage(
+          'Hello! How can I help you today? I\'m here to learn about your business needs.',
+          'assistant'
+        );
+      }
     }
   }
 
-  function minimizeChat() {
-    isMinimized.value = true
-  }
-  function maximizeChat() {
-    isMinimized.value = false
+  function closeChat() {
+    isOpen.value = false;
+    messages.value = [];
+    quickReplies.value = [];
+    // Keep session ID for resuming
   }
 
-  async function startChat() {
-    if (!email.value) {
-      return
+  function addMessage(text, sender, additionalProps = {}) {
+    const message = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      text,
+      sender,
+      timestamp: new Date(),
+      ...additionalProps
+    };
+    messages.value.push(message);
+    return message;
+  }
+
+  async function sendMessage(text) {
+    if (!text || !text.trim() || isLoading.value || !sessionId.value) {
+      return;
     }
-
-    isLoading.value = true
-    try {
-      const response = await chatApi.startChat({
-        email: email.value,
-        organizationName: organizationName.value
-      })
-
-      sessionId.value = response.sessionId
-      leadId.value = response.leadId
-      hasStarted.value = true
-
-      // Add initial message
-      messages.value.push({
-        id: Date.now(),
-        type: 'assistant',
-        content: response.message,
-        timestamp: new Date()
-      })
-    } catch (error) {
-      console.error('Failed to start chat:', error)
-      messages.value.push({
-        id: Date.now(),
-        type: 'system',
-        content: 'Sorry, I\'m having trouble connecting. Please try again.',
-        timestamp: new Date()
-      })
-    } finally {
-      isLoading.value = false
-    }
-  }
-  async function sendMessage(content) {
-    if (!content.trim() || !sessionId.value) return
 
     // Add user message
-    messages.value.push({
-      id: Date.now(),
-      type: 'user',
-      content: content,
-      timestamp: new Date()
-    })
-
-    isLoading.value = true
-    quickReplies.value = []
+    addMessage(text, 'user');
+    
+    // Clear quick replies when user sends a message
+    quickReplies.value = [];
+    isLoading.value = true;
 
     try {
-      const response = await chatApi.sendMessage({
+      const response = await axios.post('/api/chat/message', {
         sessionId: sessionId.value,
-        message: content
-      })
+        message: text
+      });
 
-      // Add assistant response
-      messages.value.push({
-        id: Date.now() + 1,
-        type: 'assistant',
-        content: response.message,
-        timestamp: new Date()
-      })
+      const { reply, quickReplies: newQuickReplies, requiresEmail, isQualified: qualified } = response.data;
 
-      completionRate.value = response.completionRate
-      quickReplies.value = response.quickReplies || []
+      // Add AI response
+      addMessage(reply, 'assistant', { requiresEmail });
 
-      // Check if chat is complete
-      if (response.isComplete) {
-        setTimeout(() => {
-          getSummary()
-        }, 2000)
+      // Update state
+      if (newQuickReplies) {
+        quickReplies.value = newQuickReplies;
+      }
+      
+      if (qualified !== undefined) {
+        isQualified.value = qualified;
       }
     } catch (error) {
-      console.error('Failed to send message:', error)
-      messages.value.push({
-        id: Date.now() + 1,
-        type: 'system',
-        content: 'Sorry, I couldn\'t send your message. Please try again.',
-        timestamp: new Date()
-      })
+      console.error('Failed to send message:', error);
+      addMessage(
+        'I apologize, but I\'m having trouble processing your message. Please try again.',
+        'assistant',
+        { isError: true }
+      );
     } finally {
-      isLoading.value = false
+      isLoading.value = false;
     }
   }
-  async function getSummary() {
-    if (!sessionId.value) return
+
+  async function submitEmail(email) {
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      addMessage(
+        'Please provide a valid email address.',
+        'assistant',
+        { isError: true }
+      );
+      return;
+    }
+
+    isLoading.value = true;
 
     try {
-      const response = await chatApi.getSummary(sessionId.value)
-      
-      messages.value.push({
-        id: Date.now(),
-        type: 'summary',
-        content: response.summary,
-        timestamp: new Date()
-      })
+      const response = await axios.post('/api/leads', {
+        sessionId: sessionId.value,
+        email
+      });
 
-      // Show Calendly scheduling option
-      messages.value.push({
-        id: Date.now() + 1,
-        type: 'calendly',
-        content: 'Ready to take the next step? Schedule your free consultation:',
-        timestamp: new Date()
-      })
+      userEmail.value = email;
+      
+      addMessage(
+        response.data.message || 'Thank you! I\'ve saved your contact information.',
+        'assistant'
+      );
     } catch (error) {
-      console.error('Failed to get summary:', error)
+      console.error('Failed to submit email:', error);
+      addMessage(
+        'There was an error saving your email. Please try again.',
+        'assistant',
+        { isError: true }
+      );
+    } finally {
+      isLoading.value = false;
     }
   }
 
-  function reset() {
-    messages.value = []
-    sessionId.value = null
-    leadId.value = null
-    completionRate.value = 0
-    quickReplies.value = []
-    hasStarted.value = false
+  async function selectQuickReply(reply) {
+    quickReplies.value = []; // Clear quick replies immediately
+    await sendMessage(reply);
+  }
+
+  // Session persistence
+  function saveSession() {
+    const sessionData = {
+      sessionId: sessionId.value,
+      userEmail: userEmail.value,
+      isQualified: isQualified.value
+    };
+    localStorage.setItem('chat_session', JSON.stringify(sessionData));
+  }
+
+  function restoreSession() {
+    try {
+      const savedSession = localStorage.getItem('chat_session');
+      if (savedSession) {
+        const sessionData = JSON.parse(savedSession);
+        sessionId.value = sessionData.sessionId;
+        userEmail.value = sessionData.userEmail;
+        isQualified.value = sessionData.isQualified;
+      }
+    } catch (error) {
+      console.error('Failed to restore session:', error);
+    }
   }
 
   return {
     // State
     isOpen,
-    isMinimized,
     messages,
     sessionId,
-    leadId,
     isLoading,
-    completionRate,
     quickReplies,
-    email,
-    organizationName,
-    hasStarted,
+    userEmail,
+    isQualified,
     
-    // Computed
+    // Getters
+    hasActiveSession,
     messageCount,
-    isComplete,
+    lastMessage,
+    isWaitingForEmail,
     
     // Actions
-    toggleChat,
-    minimizeChat,
-    maximizeChat,
-    startChat,
+    openChat,
+    closeChat,
     sendMessage,
-    getSummary,
-    reset
-  }
-})
+    submitEmail,
+    selectQuickReply,
+    addMessage,
+    saveSession,
+    restoreSession
+  };
+});
