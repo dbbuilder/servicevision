@@ -3,92 +3,68 @@
 
 module.exports = (sequelize, DataTypes) => {
     const ChatSession = sequelize.define('ChatSession', {
-        id: {
+        sessionId: {
             type: DataTypes.UUID,
             defaultValue: DataTypes.UUIDV4,
             primaryKey: true,
-            allowNull: false
+            field: 'session_id'
         },
-        leadId: {
-            type: DataTypes.UUID,
+        messages: {
+            type: DataTypes.JSON,
+            defaultValue: [],
             allowNull: false,
-            references: {
-                model: 'Leads',
-                key: 'id'
+            field: 'messages'
+        },
+        userEmail: {
+            type: DataTypes.STRING,
+            allowNull: true,
+            field: 'user_email',
+            validate: {
+                isEmail: true
             }
         },
-        sessionId: {
-            type: DataTypes.STRING(100),
-            allowNull: false,
-            unique: true
-        },
-        startTime: {
-            type: DataTypes.DATE,
-            defaultValue: DataTypes.NOW
-        },
-        endTime: {
-            type: DataTypes.DATE,
-            allowNull: true
-        },
-        conversationHistory: {
-            type: DataTypes.JSON,
-            allowNull: true,
-            defaultValue: []
+        leadQualified: {
+            type: DataTypes.BOOLEAN,
+            defaultValue: false,
+            field: 'lead_qualified'
         },
         executiveSummary: {
             type: DataTypes.TEXT,
-            allowNull: true
-        },
-        identifiedNeeds: {
-            type: DataTypes.JSON,
             allowNull: true,
-            defaultValue: []
-        },
-        recommendedServices: {
-            type: DataTypes.JSON,
-            allowNull: true,
-            defaultValue: []
-        },
-        isComplete: {
-            type: DataTypes.BOOLEAN,
-            defaultValue: false
-        },
-        completionRate: {
-            type: DataTypes.FLOAT,
-            defaultValue: 0
-        },
-        totalMessages: {
-            type: DataTypes.INTEGER,
-            defaultValue: 0
-        },
-        userSentiment: {
-            type: DataTypes.STRING(20),
-            allowNull: true
+            field: 'executive_summary'
         },
         metadata: {
             type: DataTypes.JSON,
-            allowNull: true,
-            defaultValue: {}
+            defaultValue: {},
+            field: 'metadata'
         }
-    }, {        tableName: 'ChatSessions',
+    }, {
+        tableName: 'chat_sessions',
         timestamps: true,
         indexes: [
             {
-                fields: ['leadId']
+                fields: ['user_email']
             },
             {
-                fields: ['sessionId']
-            },
-            {
-                fields: ['createdAt']
+                fields: ['created_at']
             }
-        ]
+        ],
+        instanceMethods: {
+            addMessage: function(role, content) {
+                this.messages.push({
+                    role,
+                    content,
+                    timestamp: new Date()
+                });
+                return this.save();
+            }
+        }
     });
 
     // Define associations
     ChatSession.associate = function(models) {
         ChatSession.belongsTo(models.Lead, {
-            foreignKey: 'leadId',
+            foreignKey: 'lead_id',
             as: 'lead'
         });
     };

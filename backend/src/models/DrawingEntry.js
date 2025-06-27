@@ -6,66 +6,87 @@ module.exports = (sequelize, DataTypes) => {
         id: {
             type: DataTypes.UUID,
             defaultValue: DataTypes.UUIDV4,
-            primaryKey: true,
-            allowNull: false
+            primaryKey: true
         },
-        leadId: {
-            type: DataTypes.UUID,
+        entryNumber: {
+            type: DataTypes.STRING,
             allowNull: false,
-            references: {
-                model: 'Leads',
-                key: 'id'
-            }
+            unique: true,
+            field: 'entry_number'
         },
-        entryType: {
-            type: DataTypes.ENUM('email', 'session_complete'),
-            allowNull: false
+        status: {
+            type: DataTypes.ENUM('active', 'winner', 'expired'),
+            defaultValue: 'active'
         },
-        drawingPeriod: {
-            type: DataTypes.STRING(20),
-            allowNull: false,
-            comment: 'Format: YYYY-MM'
-        },
-        isWinner: {
-            type: DataTypes.BOOLEAN,
-            defaultValue: false
-        },
-        winnerSelectedDate: {
+        drawingDate: {
             type: DataTypes.DATE,
-            allowNull: true
+            allowNull: true,
+            field: 'drawing_date'
         },
-        prizeDescription: {
-            type: DataTypes.STRING(500),
-            defaultValue: 'Free 1-hour consulting session'
+        wonDate: {
+            type: DataTypes.DATE,
+            allowNull: true,
+            field: 'won_date'
         },
-        notificationSent: {
-            type: DataTypes.BOOLEAN,
-            defaultValue: false
+        prizeDetails: {
+            type: DataTypes.JSON,
+            defaultValue: {
+                type: 'free_consultation',
+                value: 500,
+                duration: '1 hour'
+            },
+            field: 'prize_details'
         }
     }, {
-        tableName: 'DrawingEntries',
+        tableName: 'drawing_entries',
         timestamps: true,
         indexes: [
             {
-                fields: ['leadId']
+                fields: ['entry_number'],
+                unique: true
             },
             {
-                fields: ['drawingPeriod']
+                fields: ['status']
             },
             {
-                fields: ['isWinner']
-            },
-            {
-                unique: true,
-                fields: ['leadId', 'entryType', 'drawingPeriod']
+                fields: ['created_at']
             }
-        ]
+        ],
+        hooks: {
+            beforeCreate: (entry) => {
+                // Generate unique entry number
+                const date = new Date();
+                const year = date.getFullYear();
+                const random = Math.floor(Math.random() * 100000).toString().padStart(5, '0');
+                entry.entryNumber = `DE-${year}-${random}`;
+            }
+        },
+        classMethods: {
+            selectRandomWinner: async function() {
+                const activeEntries = await this.findAll({
+                    where: { status: 'active' }
+                });
+                
+                if (activeEntries.length === 0) {
+                    return null;
+                }
+                
+                const randomIndex = Math.floor(Math.random() * activeEntries.length);
+                const winner = activeEntries[randomIndex];
+                
+                winner.status = 'winner';
+                winner.wonDate = new Date();
+                await winner.save();
+                
+                return winner;
+            }
+        }
     });
 
     // Define associations
     DrawingEntry.associate = function(models) {
         DrawingEntry.belongsTo(models.Lead, {
-            foreignKey: 'leadId',
+            foreignKey: 'lead_id',
             as: 'lead'
         });
     };
