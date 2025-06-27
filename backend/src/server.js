@@ -14,12 +14,15 @@ const session = require('express-session');
 const RedisStore = require('connect-redis').default;
 const redis = require('redis');
 const applicationInsights = require('applicationinsights');
+const { createServer } = require('http');
+const { Server } = require('socket.io');
 
 // Import custom modules
 const logger = require('./utils/logger');
 const { sequelize } = require('./models');
 const errorHandler = require('./middleware/errorHandler');
 const apiRoutes = require('./routes');
+const WebSocketService = require('./services/websocketService');
 
 // Initialize Application Insights if instrumentation key is provided
 if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
@@ -38,8 +41,24 @@ if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
     logger.info('Application Insights initialized');
 }
 
-// Create Express application
+// Create Express application and HTTP server
 const app = express();
+const httpServer = createServer(app);
+
+// Initialize Socket.IO
+const io = new Server(httpServer, {
+    cors: {
+        origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+        methods: ['GET', 'POST'],
+        credentials: true
+    },
+    pingTimeout: 60000,
+    pingInterval: 25000
+});
+
+// Initialize WebSocket service
+const websocketService = new WebSocketService(io);
+websocketService.initialize();
 
 // Configure Redis client for session storage
 const redisClient = redis.createClient({
@@ -126,9 +145,10 @@ async function startServer() {
         }
         
         // Start listening
-        app.listen(PORT, () => {
+        httpServer.listen(PORT, () => {
             logger.info(`Server is running on port ${PORT}`);
             logger.info(`Environment: ${process.env.NODE_ENV}`);
+            logger.info('WebSocket server initialized');
         });
     } catch (error) {
         logger.error('Failed to start server:', error);
@@ -139,10 +159,15 @@ async function startServer() {
 // Handle graceful shutdown
 process.on('SIGTERM', async () => {
     logger.info('SIGTERM signal received: closing HTTP server');
+    io.close();
+    httpServer.close();
     await sequelize.close();
     await redisClient.quit();
     process.exit(0);
 });
+
+// Export for testing
+module.exports = { app, httpServer, io, websocketService };
 
 // Start the server
 startServer();
