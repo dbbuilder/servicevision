@@ -1,260 +1,362 @@
 # ServiceVision Deployment Guide
 
-## Technology Stack
-
-Our chosen deployment stack:
-- **Frontend**: Vercel
-- **Backend**: Railway
-- **Database**: Supabase (PostgreSQL)
-- **Sessions**: In-memory (can upgrade to Upstash Redis)
+This guide covers the deployment process for both the frontend (Vue.js) and backend (Node.js/Express) applications.
 
 ## Prerequisites
 
-1. Create accounts at:
-   - [Vercel](https://vercel.com)
-   - [Railway](https://railway.app)
-   - [Supabase](https://supabase.com)
-   - [OpenAI](https://platform.openai.com)
-   - [SendGrid](https://sendgrid.com)
+- Node.js 18.x or higher
+- npm or yarn package manager
+- Git
+- Accounts on deployment platforms (Vercel for frontend, Railway for backend)
 
-2. Install CLI tools:
-   ```bash
-   npm i -g vercel
-   npm i -g @railway/cli
-   ```
+## Environment Variables
 
-## Step 1: Set Up Supabase Database
+### Backend Environment Variables
+```bash
+# Server Configuration
+NODE_ENV=production
+PORT=3000
 
-1. **Create New Project** at [supabase.com](https://supabase.com)
-2. **Copy Connection String** from Settings > Database
-3. **Note the connection details**:
-   - Host: `db.[YOUR-PROJECT-REF].supabase.co`
-   - Port: `5432`
-   - Database: `postgres`
-   - User: `postgres`
-   - Password: (your database password)
+# Database Configuration
+DB_HOST=your-database-host
+DB_PORT=5432
+DB_NAME=servicevision
+DB_USER=your-db-user
+DB_PASSWORD=your-db-password
 
-## Step 2: Deploy Backend to Railway
+# JWT Configuration
+JWT_SECRET=your-secure-jwt-secret
+JWT_EXPIRY=7d
 
-1. **Push code to GitHub** (see Git Setup section below)
+# OpenAI Configuration
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_MODEL=gpt-4-turbo-preview
 
-2. **Create Railway Project**:
-   ```bash
-   cd backend
-   railway login
-   railway init
-   ```
+# SendGrid Configuration
+SENDGRID_API_KEY=your-sendgrid-api-key
+FROM_EMAIL=noreply@servicevision.com
+FROM_NAME=ServiceVision
 
-3. **Link GitHub Repo**:
-   - Go to Railway dashboard
-   - Click "New Project" > "Deploy from GitHub repo"
-   - Select your repository and the `/backend` directory
-4. **Add Environment Variables** in Railway dashboard:
-   ```
-   NODE_ENV=production
-   DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
-   OPENAI_API_KEY=sk-...
-   SENDGRID_API_KEY=SG...
-   JWT_SECRET=generate-a-long-random-string
-   CORS_ORIGIN=https://your-app.vercel.app
-   ```
+# Calendly Configuration
+CALENDLY_WEBHOOK_SECRET=your-calendly-webhook-secret
+CALENDLY_PERSONAL_ACCESS_TOKEN=your-calendly-token
 
-5. **Deploy**:
-   ```bash
-   railway up
-   ```
+# Redis Configuration (Optional)
+REDIS_URL=redis://your-redis-url
 
-6. **Get your Railway URL** from the dashboard (e.g., `https://servicevision-backend.up.railway.app`)
+# Monitoring (Optional)
+SENTRY_DSN=your-sentry-dsn
+```
 
-## Step 3: Deploy Frontend to Vercel
+### Frontend Environment Variables
+```bash
+# API Configuration
+VITE_API_URL=https://your-backend-url.railway.app
+VITE_WEBSOCKET_URL=wss://your-backend-url.railway.app
+VITE_CALENDLY_URL=https://calendly.com/your-calendar
+```
 
-1. **Update API URL**:
-   ```bash
-   cd frontend
-   echo "VITE_API_URL=https://servicevision-backend.up.railway.app" > .env.production
-   ```
+## Frontend Deployment (Vercel)
 
-2. **Deploy to Vercel**:
-   ```bash
-   vercel --prod
-   ```
+### 1. Initial Setup
 
-3. **Set Environment Variables** in Vercel dashboard:
-   - `VITE_API_URL`: Your Railway backend URL
-   - `VITE_CALENDLY_URL`: Your Calendly link
+1. Install Vercel CLI:
+```bash
+npm i -g vercel
+```
 
-4. **Configure Domain** (optional):
-   - Add custom domain in Vercel settings
-   - Update DNS records
+2. Navigate to frontend directory:
+```bash
+cd frontend
+```
 
-## Step 4: Database Migration
+3. Initialize Vercel project:
+```bash
+vercel
+```
 
-1. **Connect to Railway**:
-   ```bash
-   railway run npm run migrate
-   ```
+### 2. Configuration
 
-2. **Seed initial data** (optional):
-   ```bash
-   railway run npm run seed
-   ```
-## Step 5: Final Configuration
+The `vercel.json` file is already configured with:
+- Vue.js framework settings
+- SPA routing rewrites
+- Security headers
+- Environment variable placeholders
 
-1. **Update CORS in Railway**:
-   - Set `CORS_ORIGIN` to your Vercel URL
-   - Redeploy backend: `railway up`
+### 3. Deploy
 
-2. **Test the Integration**:
-   - Visit your Vercel URL
-   - Click the chat widget
-   - Verify AI responses work
-   - Test email sending
+#### Development Deployment
+```bash
+vercel
+```
 
-3. **Configure Webhooks**:
-   - Add Calendly webhook URL: `https://your-backend.railway.app/api/webhooks/calendly`
-   - Add SendGrid webhook URL: `https://your-backend.railway.app/api/webhooks/sendgrid`
+#### Production Deployment
+```bash
+vercel --prod
+```
 
-## Git Setup
+### 4. Environment Variables
+
+Set environment variables in Vercel dashboard:
+1. Go to Project Settings → Environment Variables
+2. Add the required variables:
+   - `VITE_API_URL`
+   - `VITE_WEBSOCKET_URL`
+   - `VITE_CALENDLY_URL`
+
+## Backend Deployment (Railway)
+
+### 1. Initial Setup
+
+1. Install Railway CLI:
+```bash
+npm i -g @railway/cli
+```
+
+2. Navigate to backend directory:
+```bash
+cd backend
+```
+
+3. Initialize Railway project:
+```bash
+railway login
+railway init
+```
+
+### 2. Database Setup
+
+1. Add PostgreSQL database:
+```bash
+railway add
+```
+Select PostgreSQL from the list.
+
+2. Get database connection URL:
+```bash
+railway variables
+```
+
+### 3. Configuration
+
+The `railway.json` file is already configured with:
+- Node.js build settings
+- Health check endpoint
+- Restart policies
+- Environment defaults
+
+### 4. Deploy
 
 ```bash
-# Initialize repository
-cd d:\dev2\servicevisionsite
-git init
-
-# Create .gitignore
-cat > .gitignore << EOL
-# Dependencies
-node_modules/
-.pnp
-.pnp.js
-
-# Production
-/build
-/dist
-
-# Environment files
-.env
-.env.local
-.env.production
-.env.*.local
-
-# Logs
-logs/
-*.log
-npm-debug.log*
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-.DS_Store
-
-# Database
-*.sqlite
-*.sqlite3
-
-# Temporary files
-tmp/
-temp/
-EOL
-
-# Add all files
-git add .
-
-# Initial commit
-git commit -m "Initial commit: ServiceVision consulting platform with AI chat"
-
-# Create GitHub repository (do this on GitHub.com)
-# Then add remote
-git remote add origin https://github.com/YOUR-USERNAME/servicevision.git
-git branch -M main
-git push -u origin main
+railway up
 ```
+
+### 5. Environment Variables
+
+Set environment variables in Railway dashboard or CLI:
+
+```bash
+railway variables set NODE_ENV=production
+railway variables set JWT_SECRET="your-secure-secret"
+railway variables set OPENAI_API_KEY="your-openai-key"
+railway variables set SENDGRID_API_KEY="your-sendgrid-key"
+# ... set all other required variables
+```
+
+## Post-Deployment Steps
+
+### 1. Database Migrations
+
+Run migrations on the production database:
+
+```bash
+railway run npm run migrate
+```
+
+### 2. Seed Initial Data (Optional)
+
+```bash
+railway run npm run seed
+```
+
+### 3. Health Checks
+
+Verify deployments:
+- Frontend: `https://your-app.vercel.app`
+- Backend: `https://your-app.railway.app/health`
+
+### 4. Configure Webhooks
+
+Update Calendly webhook URL to point to your production backend:
+```
+https://your-backend.railway.app/api/webhooks/calendly
+```
+
+### 5. DNS Configuration (Optional)
+
+If using custom domains:
+
+#### Vercel
+1. Go to Project Settings → Domains
+2. Add your custom domain
+3. Update DNS records as instructed
+
+#### Railway
+1. Go to Settings → Domains
+2. Add your custom domain
+3. Update DNS records as instructed
+
 ## Monitoring & Maintenance
 
-### Monitoring Setup
+### 1. Logs
 
-1. **Railway Metrics**:
-   - CPU and Memory usage
-   - Request logs
-   - Deployment history
+#### Vercel Logs
+```bash
+vercel logs
+```
 
-2. **Vercel Analytics**:
-   - Page views
-   - Web Vitals
-   - User geography
+#### Railway Logs
+```bash
+railway logs
+```
 
-3. **Supabase Dashboard**:
-   - Database performance
-   - Query insights
-   - Storage usage
+### 2. Monitoring Setup
 
-4. **External Monitoring** (recommended):
-   - [UptimeRobot](https://uptimerobot.com) - Free uptime monitoring
-   - [Sentry](https://sentry.io) - Error tracking
-   - [LogRocket](https://logrocket.com) - Session replay
+1. Configure error tracking (Sentry):
+   - Add `SENTRY_DSN` to environment variables
+   - Errors will be automatically reported
 
-### Regular Maintenance
+2. Set up uptime monitoring:
+   - Use services like UptimeRobot or Pingdom
+   - Monitor both frontend and backend URLs
 
-- **Weekly**:
-  - Check OpenAI API usage and costs
-  - Review error logs in Railway
-  - Monitor email delivery rates
+### 3. Backup Strategy
 
-- **Monthly**:
-  - Update dependencies
-  - Review database performance
-  - Backup Supabase data
-  - Analyze chat conversation patterns
+1. Database backups:
+   - Railway provides automatic daily backups
+   - Configure additional backup strategy as needed
 
-## Cost Summary
-
-### Monthly Estimates:
-- **Vercel**: Free (hobby plan)
-- **Railway**: $5-20 (usage-based)
-- **Supabase**: Free (up to 500MB)
-- **OpenAI**: $20-100 (based on usage)
-- **SendGrid**: $15 (up to 40k emails)
-
-**Total**: ~$40-135/month
-
-### Cost Optimization Tips:
-1. Use Vercel's caching for static assets
-2. Implement request caching in Railway
-3. Optimize database queries
-4. Cache common AI responses
-5. Use SendGrid templates for emails
+2. Code backups:
+   - Ensure all code is committed to Git
+   - Use GitHub/GitLab for version control
 
 ## Troubleshooting
 
-### Common Issues:
+### Common Issues
 
-1. **CORS Errors**:
-   ```bash
-   # Check Railway env var
-   CORS_ORIGIN=https://your-app.vercel.app
-   ```
+1. **WebSocket Connection Failed**
+   - Ensure `VITE_WEBSOCKET_URL` uses `wss://` protocol
+   - Check CORS configuration in backend
 
-2. **Database Connection**:
-   ```bash
-   # Test connection
-   railway run node -e "require('./src/models').sequelize.authenticate()"
-   ```
+2. **Database Connection Error**
+   - Verify database credentials
+   - Check if database is accessible from Railway
 
-3. **OpenAI Rate Limits**:
-   - Implement exponential backoff
-   - Add request queuing
-   - Cache responses
+3. **Build Failures**
+   - Check Node.js version compatibility
+   - Ensure all dependencies are in package.json
 
-4. **Deployment Failures**:
-   - Check Railway build logs
-   - Verify all env vars are set
-   - Ensure package.json scripts are correct
+4. **Email Sending Issues**
+   - Verify SendGrid API key
+   - Check sender domain verification
 
-## Support Resources
+### Debug Commands
 
-- **Railway**: [docs.railway.app](https://docs.railway.app)
-- **Vercel**: [vercel.com/docs](https://vercel.com/docs)
-- **Supabase**: [supabase.com/docs](https://supabase.com/docs)
-- **Our Docs**: Check `/docs` folder in the repository
+```bash
+# Check backend health
+curl https://your-backend.railway.app/health
+
+# Test WebSocket connection
+wscat -c wss://your-backend.railway.app
+
+# Check environment variables
+railway variables
+```
+
+## CI/CD Pipeline (Optional)
+
+### GitHub Actions
+
+Create `.github/workflows/deploy.yml`:
+
+```yaml
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - run: cd frontend && npm ci
+      - run: cd frontend && npm test
+      - uses: amondnet/vercel-action@v20
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-args: '--prod'
+          working-directory: ./frontend
+
+  deploy-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - run: cd backend && npm ci
+      - run: cd backend && npm test
+      - uses: berviantoleo/railway-deploy@main
+        with:
+          railway_token: ${{ secrets.RAILWAY_TOKEN }}
+          service_path: ./backend
+```
+
+## Security Checklist
+
+- [ ] All sensitive data in environment variables
+- [ ] HTTPS enabled on all endpoints
+- [ ] CORS properly configured
+- [ ] Rate limiting enabled
+- [ ] Input validation on all endpoints
+- [ ] SQL injection protection (via Sequelize)
+- [ ] XSS protection headers set
+- [ ] JWT secrets are strong and unique
+- [ ] Regular dependency updates
+
+## Performance Optimization
+
+1. **Frontend**
+   - Enable Vercel Edge Network
+   - Implement lazy loading
+   - Optimize images and assets
+
+2. **Backend**
+   - Enable Railway autoscaling
+   - Implement Redis caching
+   - Optimize database queries
+
+## Rollback Procedures
+
+### Vercel Rollback
+```bash
+vercel ls
+vercel rollback [deployment-url]
+```
+
+### Railway Rollback
+Use Railway dashboard to revert to previous deployment.
+
+## Support
+
+For deployment issues:
+- Vercel: https://vercel.com/docs
+- Railway: https://docs.railway.app
+- Project Issues: https://github.com/yourusername/servicevision/issues

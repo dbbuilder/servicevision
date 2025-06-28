@@ -11,7 +11,8 @@ describe('Basic Chat Integration Test', () => {
   let port;
 
   beforeAll(async () => {
-    // Sync database
+    // Drop and recreate database tables
+    await sequelize.drop();
     await sequelize.sync({ force: true });
     
     // Create HTTP server
@@ -31,21 +32,27 @@ describe('Basic Chat Integration Test', () => {
   });
 
   beforeEach(async () => {
-    // Clear tables in correct order due to foreign keys
+    // Clear all data - SQLite doesn't support truncate, so we destroy records
+    // Handle foreign key constraints by deleting in correct order
     try {
-      await Message.destroy({ where: {} });
+      await sequelize.query('DELETE FROM messages');
     } catch (e) {
-      console.error('Error clearing Message table:', e.message);
+      // Table might not exist yet
     }
     try {
-      await ChatSession.destroy({ where: {} });
+      await sequelize.query('DELETE FROM chat_sessions');
     } catch (e) {
-      console.error('Error clearing ChatSession table:', e.message);
+      // Table might not exist yet
     }
     try {
-      await Lead.destroy({ where: {} });
+      await sequelize.query('DELETE FROM leads');
     } catch (e) {
-      console.error('Error clearing Lead table:', e.message);
+      // Table might not exist yet
+    }
+    try {
+      await sequelize.query("DELETE FROM sqlite_sequence WHERE name IN ('messages', 'chat_sessions', 'leads')");
+    } catch (e) {
+      // sqlite_sequence might not exist
     }
   });
 
