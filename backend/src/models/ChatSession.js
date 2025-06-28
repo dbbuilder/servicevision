@@ -3,10 +3,16 @@
 
 module.exports = (sequelize, DataTypes) => {
     const ChatSession = sequelize.define('ChatSession', {
+        id: {
+            type: DataTypes.INTEGER,
+            primaryKey: true,
+            autoIncrement: true
+        },
         sessionId: {
             type: DataTypes.UUID,
             defaultValue: DataTypes.UUIDV4,
-            primaryKey: true,
+            unique: true,
+            allowNull: false,
             field: 'session_id'
         },
         messages: {
@@ -102,6 +108,10 @@ module.exports = (sequelize, DataTypes) => {
         tableName: 'chat_sessions',
         timestamps: true,
         indexes: [
+            {
+                fields: ['session_id'],
+                unique: true
+            },
             {
                 fields: ['user_email']
             },

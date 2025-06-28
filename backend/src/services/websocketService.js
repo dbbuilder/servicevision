@@ -1,4 +1,4 @@
-const { ChatSession, Lead, Message } = require('../models');
+const { ChatSession, Lead, Message, sequelize } = require('../models');
 const chatService = require('./chatService');
 const logger = require('../utils/logger');
 
@@ -53,7 +53,20 @@ class WebSocketService {
         // Store session info - keep the Sequelize instance for now
         socket.sessionId = sessionId;
         socket.session = session; // Keep as Sequelize instance
-        socket.sessionDbId = session.id; // Store ID separately for easy access
+        // Ensure we have the database ID - use dataValues if needed
+        socket.sessionDbId = session.id || session.dataValues?.id;
+        
+        if (!socket.sessionDbId) {
+          logger.error('Failed to get session database ID', {
+            sessionId,
+            hasId: !!session.id,
+            hasDataValues: !!session.dataValues,
+            dataValuesId: session.dataValues?.id
+          });
+          socket.emit('authentication_failed', { error: 'Session initialization error' });
+          return;
+        }
+        
         this.sessions.set(sessionId, { socket, session });
         this.metrics.activeSessions++;
         
@@ -241,13 +254,20 @@ class WebSocketService {
           timestamp: new Date()
         });
 
-        // Update session
-        socket.session.totalMessages = (socket.session.totalMessages || 0) + 2;
-        socket.session.conversationHistory = response.conversationHistory;
-        socket.session.identifiedNeeds = response.identifiedNeeds;
-        socket.session.recommendedServices = response.recommendedServices;
-        socket.session.completionRate = response.completionRate;
-        await socket.session.save();
+        // Update session - update fields directly using update method to avoid save issues
+        try {
+          await ChatSession.update({
+            totalMessages: sequelize.literal('total_messages + 2'),
+            conversationHistory: response.conversationHistory,
+            identifiedNeeds: response.identifiedNeeds,
+            recommendedServices: response.recommendedServices,
+            completionRate: response.completionRate
+          }, {
+            where: { id: socket.sessionDbId }
+          });
+        } catch (updateError) {
+          logger.error('Failed to update session:', updateError);
+        }
 
         // Update metrics
         this.metrics.totalMessages += 2;
@@ -268,6 +288,14 @@ class WebSocketService {
 
       } catch (error) {
         logger.error('Message processing error:', error);
+        logger.error('Error stack:', error.stack);
+        logger.error('Error details:', {
+          message: error.message,
+          code: error.code,
+          sessionDbId: socket.sessionDbId,
+          sessionId: socket.sessionId,
+          hasSession: !!socket.session
+        });
         socket.emit('chat_error', {
           error: 'Failed to process message',
           retry: true

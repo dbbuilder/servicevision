@@ -430,9 +430,22 @@ class ConversationStateService {
    */
   async saveState(session, state) {
     try {
-      session.conversationState = state;
-      session.completionRate = this.getCompletionRate(state);
-      await session.save();
+      const completionRate = this.getCompletionRate(state);
+      
+      // Use update method to avoid save issues
+      const { ChatSession } = require('../models');
+      await ChatSession.update({
+        state: state,
+        completionRate: completionRate
+      }, {
+        where: { 
+          id: session.id 
+        }
+      });
+      
+      // Update the session object for consistency
+      session.state = state;
+      session.completionRate = completionRate;
     } catch (error) {
       logger.error('Failed to save conversation state:', error);
       throw error;
