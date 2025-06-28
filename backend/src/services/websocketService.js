@@ -79,7 +79,7 @@ class WebSocketService {
           where: { sessionId },
           include: [{
             model: Message,
-            as: 'messages',
+            as: 'chatMessages',
             order: [['timestamp', 'ASC']]
           }]
         });
@@ -91,7 +91,7 @@ class WebSocketService {
           socket.join(`session:${sessionId}`);
 
           // Convert messages to conversation history format
-          const conversationHistory = session.messages.map(msg => ({
+          const conversationHistory = (session.chatMessages || []).map(msg => ({
             id: msg.id,
             role: msg.role,
             content: msg.content,
@@ -118,6 +118,51 @@ class WebSocketService {
   }
 
   handleMessages(socket) {
+    // Handle start_chat event
+    socket.on('start_chat', async () => {
+      try {
+        if (!socket.sessionId || !socket.session) {
+          socket.emit('error', { error: 'Not authenticated' });
+          return;
+        }
+
+        const message = await chatService.getInitialMessage(
+          socket.session.lead,
+          socket.session
+        );
+
+        // Send as a message event
+        socket.emit('message', {
+          id: Date.now(),
+          content: message,
+          sender: 'assistant',
+          timestamp: new Date()
+        });
+
+      } catch (error) {
+        logger.error('Start chat error:', error);
+        socket.emit('error', { error: 'Failed to start chat' });
+      }
+    });
+
+    // Handle message event (alias for chat_message)
+    socket.on('message', async (data) => {
+      // Forward to chat_message handler
+      socket.listeners('chat_message')[0](data);
+    });
+
+    // Handle quick reply
+    socket.on('quick_reply', async (data) => {
+      try {
+        const { reply } = data;
+        // Process quick reply as a message
+        socket.listeners('chat_message')[0]({ message: reply, timestamp: new Date() });
+      } catch (error) {
+        logger.error('Quick reply error:', error);
+        socket.emit('error', { error: 'Failed to process quick reply' });
+      }
+    });
+
     socket.on('chat_message', async (data) => {
       try {
         // Check authentication
@@ -176,9 +221,10 @@ class WebSocketService {
         this.metrics.totalMessages += 2;
 
         // Send response with message ID
-        socket.emit('chat_response', {
+        socket.emit('message', {
           id: assistantMessage.id,
-          message: response.message,
+          content: response.message,
+          sender: 'assistant',
           quickReplies: response.quickReplies,
           completionRate: response.completionRate,
           isComplete: response.isComplete,
