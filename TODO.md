@@ -112,7 +112,11 @@
 
 ### Testing
 - [ ] HIGH: Complete unit test coverage (target: 80%)
-- [ ] HIGH: Add integration tests for critical paths
+- [x] IN PROGRESS: Add integration tests for critical paths - 2024-01-27
+  - [x] Created chat system integration tests
+  - [x] Set up test environment with SQLite
+  - [x] Fixed model loading and WebSocket handling
+  - [ ] Need to complete full chat flow tests
 - [ ] MEDIUM: Add E2E tests for user flows
 - [ ] MEDIUM: Performance testing
 
