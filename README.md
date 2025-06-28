@@ -114,7 +114,37 @@ npm run dev
 
 ## Deployment
 
-See deployment guide in `/docs/deployment.md`
+See deployment guide in `DEPLOYMENT.md` for detailed instructions.
+
+### Quick Deployment
+
+#### Frontend (Vercel)
+```bash
+# Install Vercel CLI
+npm i -g vercel
+
+# Deploy
+vercel
+
+# Set environment variables in Vercel dashboard:
+# - VITE_API_URL (your Railway backend URL)
+# - VITE_WS_URL (your Railway WebSocket URL)
+# - VITE_CALENDLY_URL (your Calendly scheduling URL)
+```
+
+#### Backend (Railway)
+```bash
+# Connect to Railway
+railway login
+
+# Initialize project
+railway init
+
+# Deploy
+railway up
+
+# Set environment variables in Railway dashboard
+```
 
 ## Contributing
 
