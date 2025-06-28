@@ -10,6 +10,7 @@ const session = require('express-session');
 // Import custom modules
 const errorHandler = require('./middleware/errorHandler');
 const apiRoutes = require('./routes');
+const { globalLimiter } = require('./middleware/rateLimiting');
 
 // Create Express application
 const app = express();
@@ -35,6 +36,9 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Apply global rate limiting
+app.use(globalLimiter);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

@@ -10,6 +10,7 @@ const summaryService = require('../services/summaryService');
 const ConversationStateService = require('../services/conversationStateService');
 const conversationStateService = new ConversationStateService();
 const { Lead, ChatSession, Message } = require('../models');
+const { chatLimiter, emailLimiter } = require('../middleware/rateLimiting');
 
 /**
  * Create a new chat session
@@ -55,7 +56,7 @@ router.post('/session', async (req, res, next) => {
  * Send a message in an existing chat session
  * POST /api/chat/message
  */
-router.post('/message', async (req, res, next) => {
+router.post('/message', chatLimiter, async (req, res, next) => {
     try {
         const { sessionId, message } = req.body;
         
@@ -202,7 +203,7 @@ router.get('/session/:sessionId/summary', async (req, res, next) => {
  * Send executive summary via email
  * POST /api/chat/session/:sessionId/send-summary
  */
-router.post('/session/:sessionId/send-summary', async (req, res, next) => {
+router.post('/session/:sessionId/send-summary', emailLimiter, async (req, res, next) => {
     try {
         const { sessionId } = req.params;
         
