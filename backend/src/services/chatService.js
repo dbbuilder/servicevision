@@ -1,4 +1,4 @@
-const OpenAI = require('openai');
+const { OpenAI } = require('openai');
 const { getConfig } = require('../config/environment');
 const ConversationStateService = require('./conversationStateService');
 const logger = require('../utils/logger');

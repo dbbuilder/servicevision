@@ -22,6 +22,33 @@ class ConversationStateService {
   }
 
   /**
+   * Get initial state for a new session
+   */
+  getInitialState() {
+    return {
+      stage: 'greeting',
+      context: {
+        startTime: new Date(),
+        stageHistory: [],
+        lastTransition: null
+      },
+      collected: {},
+      pending: {
+        organizationType: true,
+        businessNeeds: true,
+        timeline: true,
+        budget: true
+      },
+      flags: {
+        emailVerified: false,
+        hasEngaged: false,
+        isQualified: false,
+        readyForSummary: false
+      }
+    };
+  }
+
+  /**
    * Initialize conversation state for a new session
    */
   initializeState(session) {

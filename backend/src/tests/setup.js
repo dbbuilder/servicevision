@@ -11,6 +11,16 @@ process.env.OPENAI_API_KEY = 'test-openai-key';
 // Increase test timeout for integration tests
 jest.setTimeout(30000);
 
+// Silence console during tests
+global.console = {
+  ...console,
+  log: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+  info: jest.fn(),
+  debug: jest.fn(),
+};
+
 // Mock external services
 jest.mock('@sendgrid/mail', () => ({
   setApiKey: jest.fn(),
@@ -45,5 +55,5 @@ beforeAll(async () => {
 
 // Global teardown
 afterAll(async () => {
-  await sequelize.close();
+  // Don't close sequelize globally as individual tests handle it
 });
