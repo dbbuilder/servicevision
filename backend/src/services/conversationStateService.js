@@ -432,6 +432,13 @@ class ConversationStateService {
     try {
       const completionRate = this.getCompletionRate(state);
       
+      // Debug logging
+      console.log('saveState called with session:', {
+        id: session.id,
+        sessionId: session.sessionId,
+        hasDataValues: !!session.dataValues
+      });
+      
       // Use update method to avoid save issues
       const { ChatSession } = require('../models');
       await ChatSession.update({
@@ -448,6 +455,11 @@ class ConversationStateService {
       session.completionRate = completionRate;
     } catch (error) {
       logger.error('Failed to save conversation state:', error);
+      console.error('saveState error details:', {
+        errorMessage: error.message,
+        sessionId: session.id,
+        sessionUuid: session.sessionId
+      });
       throw error;
     }
   }
