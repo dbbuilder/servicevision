@@ -11,6 +11,8 @@ const session = require('express-session');
 const errorHandler = require('./middleware/errorHandler');
 const apiRoutes = require('./routes');
 const { globalLimiter } = require('./middleware/rateLimiting');
+const { csrfProtection, csrfToken } = require('./middleware/csrfProtection');
+const { inputSanitization } = require('./middleware/inputSanitization');
 
 // Create Express application
 const app = express();
@@ -37,10 +39,63 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Cookie parsing (for CSRF tokens)
+app.use((req, res, next) => {
+    // Simple cookie parser for CSRF
+    req.cookies = {};
+    const cookieHeader = req.headers.cookie;
+    if (cookieHeader) {
+        cookieHeader.split(';').forEach(cookie => {
+            const parts = cookie.trim().split('=');
+            if (parts.length === 2) {
+                req.cookies[parts[0]] = decodeURIComponent(parts[1]);
+            }
+        });
+    }
+    
+    // Add cookie setting method
+    res.cookie = function(name, value, options = {}) {
+        let cookie = `${name}=${encodeURIComponent(value)}`;
+        
+        if (options.maxAge) {
+            cookie += `; Max-Age=${options.maxAge / 1000}`;
+        }
+        if (options.httpOnly) {
+            cookie += '; HttpOnly';
+        }
+        if (options.secure) {
+            cookie += '; Secure';
+        }
+        if (options.sameSite) {
+            cookie += `; SameSite=${options.sameSite}`;
+        }
+        if (options.path) {
+            cookie += `; Path=${options.path}`;
+        }
+        
+        const existingCookies = this.getHeader('Set-Cookie') || [];
+        const cookies = Array.isArray(existingCookies) ? existingCookies : [existingCookies];
+        cookies.push(cookie);
+        this.setHeader('Set-Cookie', cookies);
+        
+        return this;
+    };
+    
+    next();
+});
+
 // Apply global rate limiting
 app.use(globalLimiter);
 
-// Health check endpoint
+// Apply input sanitization (before body parsing results are used)
+app.use(inputSanitization({
+    skipPaths: ['/api/webhooks', '/health'],
+    customValidators: {
+        // Add custom validators for specific fields if needed
+    }
+}));
+
+// Health check endpoint (no CSRF needed)
 app.get('/health', (req, res) => {
     res.json({
         status: 'healthy',
@@ -48,6 +103,16 @@ app.get('/health', (req, res) => {
         environment: process.env.NODE_ENV || 'test'
     });
 });
+
+// CSRF token endpoint
+app.get('/api/csrf-token', csrfToken, (req, res) => {
+    res.json({ token: req.csrfToken() });
+});
+
+// Apply CSRF protection to API routes (excluding webhooks)
+app.use(csrfProtection({
+    excludePaths: ['/api/webhooks', '/health', '/api/csrf-token']
+}));
 
 // API Routes
 app.use('/api', apiRoutes);

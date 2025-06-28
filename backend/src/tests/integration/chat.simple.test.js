@@ -1,6 +1,7 @@
 const request = require('supertest');
 const app = require('../../app');
 const { sequelize, ChatSession, Lead } = require('../../models');
+const { requestWithCsrf } = require('../helpers/csrf');
 
 describe('Simple Chat API Test', () => {
   beforeAll(async () => {
@@ -12,23 +13,18 @@ describe('Simple Chat API Test', () => {
   });
 
   test('should create a new chat session', async () => {
-    const response = await request(app)
-      .post('/api/chat/session')
-      .send({})
-      .expect(201);
-
+    const response = await requestWithCsrf(app, 'post', '/api/chat/session', {});
+    
+    expect(response.status).toBe(201);
     expect(response.body.sessionId).toBeDefined();
   });
 
   test('should get session details', async () => {
     // Create session first
-    const createResponse = await request(app)
-      .post('/api/chat/session')
-      .send({});
-
+    const createResponse = await requestWithCsrf(app, 'post', '/api/chat/session', {});
     const sessionId = createResponse.body.sessionId;
 
-    // Get session details
+    // Get session details - GET requests don't need CSRF
     const getResponse = await request(app)
       .get(`/api/chat/session/${sessionId}`)
       .expect(200);

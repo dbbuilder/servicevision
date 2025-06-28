@@ -6,6 +6,7 @@ const { sequelize, ChatSession, Lead, Message } = require('../../models');
 const chatService = require('../../services/chatService');
 const WebSocketService = require('../../services/websocketService');
 const summaryService = require('../../services/summaryService');
+const { requestWithCsrf } = require('../helpers/csrf');
 
 describe('Chat System Integration Tests', () => {
   let server;
@@ -53,10 +54,8 @@ describe('Chat System Integration Tests', () => {
   describe('Complete Chat Flow', () => {
     test('should handle new visitor chat session from start to summary', async () => {
       // Step 1: Create initial session via REST API
-      const sessionResponse = await request(app)
-        .post('/api/chat/session')
-        .send({})
-        .expect(201);
+      const sessionResponse = await requestWithCsrf(app, 'post', '/api/chat/session', {});
+      expect(sessionResponse.status).toBe(201);
 
       const { sessionId } = sessionResponse.body;
       expect(sessionId).toBeDefined();
@@ -138,10 +137,8 @@ describe('Chat System Integration Tests', () => {
       });
 
       // Create session with lead
-      const sessionResponse = await request(app)
-        .post('/api/chat/session')
-        .send({ email: 'existing@company.com' })
-        .expect(201);
+      const sessionResponse = await requestWithCsrf(app, 'post', '/api/chat/session', { email: 'existing@company.com' });
+      expect(sessionResponse.status).toBe(201);
 
       const { sessionId } = sessionResponse.body;
 
@@ -185,10 +182,8 @@ describe('Chat System Integration Tests', () => {
 
     test('should handle WebSocket disconnection and reconnection', async () => {
       // Create session
-      const sessionResponse = await request(app)
-        .post('/api/chat/session')
-        .send({})
-        .expect(201);
+      const sessionResponse = await requestWithCsrf(app, 'post', '/api/chat/session', {});
+      expect(sessionResponse.status).toBe(201);
 
       const { sessionId } = sessionResponse.body;
 
@@ -228,10 +223,8 @@ describe('Chat System Integration Tests', () => {
     });
 
     test('should handle rate limiting', async () => {
-      const sessionResponse = await request(app)
-        .post('/api/chat/session')
-        .send({})
-        .expect(201);
+      const sessionResponse = await requestWithCsrf(app, 'post', '/api/chat/session', {});
+      expect(sessionResponse.status).toBe(201);
 
       const { sessionId } = sessionResponse.body;
 
@@ -262,10 +255,8 @@ describe('Chat System Integration Tests', () => {
 
   describe('Message Persistence', () => {
     test('should persist all messages in database', async () => {
-      const sessionResponse = await request(app)
-        .post('/api/chat/session')
-        .send({})
-        .expect(201);
+      const sessionResponse = await requestWithCsrf(app, 'post', '/api/chat/session', {});
+      expect(sessionResponse.status).toBe(201);
 
       const { sessionId } = sessionResponse.body;
       
@@ -335,10 +326,8 @@ describe('Chat System Integration Tests', () => {
 
   describe('Lead Qualification', () => {
     test('should track lead qualification through conversation', async () => {
-      const sessionResponse = await request(app)
-        .post('/api/chat/session')
-        .send({})
-        .expect(201);
+      const sessionResponse = await requestWithCsrf(app, 'post', '/api/chat/session', {});
+      expect(sessionResponse.status).toBe(201);
 
       const { sessionId } = sessionResponse.body;
 
@@ -408,9 +397,8 @@ describe('Chat System Integration Tests', () => {
       await session.update({ leadId: 1 });
 
       // Request summary
-      const summaryResponse = await request(app)
-        .post(`/api/chat/session/summary-test-session/send-summary`)
-        .expect(200);
+      const summaryResponse = await requestWithCsrf(app, 'post', `/api/chat/session/summary-test-session/send-summary`, {});
+      expect(summaryResponse.status).toBe(200);
 
       expect(summaryResponse.body.success).toBe(true);
       expect(summaryResponse.body.message).toContain('Summary sent');
@@ -419,10 +407,8 @@ describe('Chat System Integration Tests', () => {
 
   describe('Quick Reply Integration', () => {
     test('should provide context-appropriate quick replies', async () => {
-      const sessionResponse = await request(app)
-        .post('/api/chat/session')
-        .send({})
-        .expect(201);
+      const sessionResponse = await requestWithCsrf(app, 'post', '/api/chat/session', {});
+      expect(sessionResponse.status).toBe(201);
 
       const { sessionId } = sessionResponse.body;
 

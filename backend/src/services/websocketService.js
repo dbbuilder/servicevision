@@ -162,8 +162,12 @@ class WebSocketService {
 
     // Handle message event (alias for chat_message)
     socket.on('message', async (data) => {
-      // Forward to chat_message handler
-      socket.listeners('chat_message')[0](data);
+      // Forward to chat_message handler, ensuring compatibility
+      const messageData = {
+        message: data.content || data.message,
+        timestamp: data.timestamp || new Date()
+      };
+      socket.listeners('chat_message')[0](messageData);
     });
 
     // Handle quick reply

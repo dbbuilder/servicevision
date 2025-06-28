@@ -4,6 +4,7 @@ const Client = require('socket.io-client');
 const app = require('../../app');
 const { sequelize, ChatSession, Lead, Message } = require('../../models');
 const WebSocketService = require('../../services/websocketService');
+const { requestWithCsrf } = require('../helpers/csrf');
 
 // Mock OpenAI to avoid API calls in tests
 jest.mock('openai', () => ({
@@ -88,12 +89,10 @@ describe('Basic Chat Integration Test', () => {
   });
 
   test('should create session and connect WebSocket', async () => {
-    // Create session
-    const response = await request(app)
-      .post('/api/chat/session')
-      .send({})
-      .expect(201);
-
+    // Create session with CSRF
+    const response = await requestWithCsrf(app, 'post', '/api/chat/session', {});
+    
+    expect(response.status).toBe(201);
     const { sessionId } = response.body;
     expect(sessionId).toBeDefined();
 
@@ -106,12 +105,10 @@ describe('Basic Chat Integration Test', () => {
   test('should handle WebSocket connection with session', (done) => {
     let sessionId;
 
-    // First create a session
-    request(app)
-      .post('/api/chat/session')
-      .send({})
-      .expect(201)
+    // First create a session with CSRF
+    requestWithCsrf(app, 'post', '/api/chat/session', {})
       .then(response => {
+        expect(response.status).toBe(201);
         sessionId = response.body.sessionId;
         
         // Connect WebSocket client
@@ -142,11 +139,9 @@ describe('Basic Chat Integration Test', () => {
   test('should receive initial message on chat start', (done) => {
     let sessionId;
 
-    request(app)
-      .post('/api/chat/session')
-      .send({})
-      .expect(201)
+    requestWithCsrf(app, 'post', '/api/chat/session', {})
       .then(response => {
+        expect(response.status).toBe(201);
         sessionId = response.body.sessionId;
         
         clientSocket = Client(`http://localhost:${port}`);
@@ -177,15 +172,15 @@ describe('Basic Chat Integration Test', () => {
     let sessionId;
     let chatSessionId;
 
-    request(app)
-      .post('/api/chat/session')
-      .send({})
-      .expect(201)
-      .then(async response => {
+    requestWithCsrf(app, 'post', '/api/chat/session', {})
+      .then(response => {
+        expect(response.status).toBe(201);
         sessionId = response.body.sessionId;
         
         // Get the actual chat session ID from database
-        const session = await ChatSession.findOne({ where: { sessionId } });
+        return ChatSession.findOne({ where: { sessionId } });
+      })
+      .then(session => {
         chatSessionId = session.id;
         
         clientSocket = Client(`http://localhost:${port}`);
@@ -206,22 +201,24 @@ describe('Basic Chat Integration Test', () => {
           }, 100);
         });
 
-        clientSocket.on('message', async (data) => {
+        clientSocket.on('message', (data) => {
           // This is the assistant's response
           if (data.sender === 'assistant') {
             // Check if both user and assistant messages were persisted
-            const messages = await Message.findAll({
+            Message.findAll({
               where: { chatSessionId }
-            });
-            
-            expect(messages.length).toBeGreaterThanOrEqual(2);
-            const userMsg = messages.find(m => m.content === userMessage);
-            expect(userMsg).toBeDefined();
-            expect(userMsg.role).toBe('user');
-            
-            const assistantMsg = messages.find(m => m.role === 'assistant');
-            expect(assistantMsg).toBeDefined();
-            done();
+            })
+              .then(messages => {
+                expect(messages.length).toBeGreaterThanOrEqual(2);
+                const userMsg = messages.find(m => m.content === userMessage);
+                expect(userMsg).toBeDefined();
+                expect(userMsg.role).toBe('user');
+                
+                const assistantMsg = messages.find(m => m.role === 'assistant');
+                expect(assistantMsg).toBeDefined();
+                done();
+              })
+              .catch(done);
           }
         });
 
@@ -234,11 +231,9 @@ describe('Basic Chat Integration Test', () => {
 
   test('should update session state on conversation progress', async () => {
     // Create session
-    const response = await request(app)
-      .post('/api/chat/session')
-      .send({})
-      .expect(201);
-
+    const response = await requestWithCsrf(app, 'post', '/api/chat/session', {});
+    expect(response.status).toBe(201);
+    
     const { sessionId } = response.body;
     
     // Get initial state
@@ -246,18 +241,16 @@ describe('Basic Chat Integration Test', () => {
     const initialState = initialSession.state;
     
     // Simulate conversation progress
-    await request(app)
-      .put(`/api/chat/session/${sessionId}`)
-      .send({
-        state: {
-          ...initialState,
-          collected: {
-            businessName: 'Test Company',
-            contactName: 'John Doe'
-          }
+    const updateResponse = await requestWithCsrf(app, 'put', `/api/chat/session/${sessionId}`, {
+      state: {
+        ...initialState,
+        collected: {
+          businessName: 'Test Company',
+          contactName: 'John Doe'
         }
-      })
-      .expect(200);
+      }
+    });
+    expect(updateResponse.status).toBe(200);
     
     // Verify state update
     const updatedSession = await ChatSession.findOne({ where: { sessionId } });
