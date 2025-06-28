@@ -50,11 +50,22 @@ class WebSocketService {
           return;
         }
 
-        // Store session info
+        // Store session info - keep the Sequelize instance for now
         socket.sessionId = sessionId;
-        socket.session = session;
+        socket.session = session; // Keep as Sequelize instance
+        socket.sessionDbId = session.id; // Store ID separately for easy access
         this.sessions.set(sessionId, { socket, session });
         this.metrics.activeSessions++;
+        
+        // Debug log for testing
+        console.log('Session details during auth:', JSON.stringify({
+          sessionId,
+          sessionDatabaseId: session.id,
+          sessionDbId: socket.sessionDbId,
+          hasId: !!session.id,
+          sessionType: typeof session,
+          isSequelizeInstance: session.constructor && session.constructor.name
+        }, null, 2));
 
         // Join session room
         socket.join(`session:${sessionId}`);
@@ -170,6 +181,17 @@ class WebSocketService {
           socket.emit('chat_error', { error: 'Not authenticated' });
           return;
         }
+        
+        // Ensure session has ID
+        if (!socket.sessionDbId) {
+          logger.error('Session missing database ID', { 
+            sessionId: socket.sessionId,
+            sessionDbId: socket.sessionDbId,
+            hasSession: !!socket.session
+          });
+          socket.emit('chat_error', { error: 'Session configuration error' });
+          return;
+        }
 
         // Rate limiting
         if (this.checkRateLimit(socket.id)) {
@@ -182,9 +204,19 @@ class WebSocketService {
 
         const { message, timestamp } = data;
         
+        // Debug log for testing
+        console.log('Processing message - socket state:', {
+          hasSession: !!socket.session,
+          sessionId: socket.sessionId,
+          sessionDbId: socket.sessionDbId,
+          sessionDatabaseId: socket.session?.id,
+          socketKeys: Object.keys(socket).filter(k => k.includes('session')),
+          message: message.substring(0, 50)
+        });
+        
         // Save user message
         const userMessage = await Message.create({
-          chatSessionId: socket.session.id,
+          chatSessionId: socket.sessionDbId,
           role: 'user',
           content: message,
           timestamp: timestamp ? new Date(timestamp) : new Date()
@@ -198,7 +230,7 @@ class WebSocketService {
 
         // Save assistant response
         const assistantMessage = await Message.create({
-          chatSessionId: socket.session.id,
+          chatSessionId: socket.sessionDbId,
           role: 'assistant',
           content: response.message,
           quickReplies: response.quickReplies || [],

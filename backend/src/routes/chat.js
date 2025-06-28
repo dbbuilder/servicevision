@@ -271,4 +271,36 @@ router.get('/session/:sessionId/qualification', async (req, res, next) => {
     }
 });
 
+/**
+ * Update session state
+ * PUT /api/chat/session/:sessionId
+ */
+router.put('/session/:sessionId', async (req, res, next) => {
+    try {
+        const { sessionId } = req.params;
+        const { state } = req.body;
+        
+        const session = await ChatSession.findOne({
+            where: { sessionId }
+        });
+        
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+        
+        // Update state
+        session.state = state;
+        await session.save();
+        
+        res.json({
+            sessionId: session.sessionId,
+            state: session.state,
+            message: 'Session updated successfully'
+        });
+        
+    } catch (error) {
+        next(error);
+    }
+});
+
 module.exports = router;
