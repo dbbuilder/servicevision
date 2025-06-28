@@ -7,7 +7,8 @@ const { v4: uuidv4 } = require('uuid');
 const logger = require('../utils/logger');
 const chatService = require('../services/chatService');
 const summaryService = require('../services/summaryService');
-const conversationStateService = require('../services/conversationStateService');
+const ConversationStateService = require('../services/conversationStateService');
+const conversationStateService = new ConversationStateService();
 const { Lead, ChatSession, Message } = require('../models');
 
 /**
