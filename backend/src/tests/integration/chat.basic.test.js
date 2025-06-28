@@ -206,17 +206,23 @@ describe('Basic Chat Integration Test', () => {
           }, 100);
         });
 
-        clientSocket.on('chat_response', async (data) => {
-          // Check if user message was persisted
-          const messages = await Message.findAll({
-            where: { chatSessionId }
-          });
-          
-          expect(messages.length).toBeGreaterThan(0);
-          const userMsg = messages.find(m => m.content === userMessage);
-          expect(userMsg).toBeDefined();
-          expect(userMsg.role).toBe('user');
-          done();
+        clientSocket.on('message', async (data) => {
+          // This is the assistant's response
+          if (data.sender === 'assistant') {
+            // Check if both user and assistant messages were persisted
+            const messages = await Message.findAll({
+              where: { chatSessionId }
+            });
+            
+            expect(messages.length).toBeGreaterThanOrEqual(2);
+            const userMsg = messages.find(m => m.content === userMessage);
+            expect(userMsg).toBeDefined();
+            expect(userMsg.role).toBe('user');
+            
+            const assistantMsg = messages.find(m => m.role === 'assistant');
+            expect(assistantMsg).toBeDefined();
+            done();
+          }
         });
 
         clientSocket.on('chat_error', (error) => {

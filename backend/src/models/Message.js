@@ -90,7 +90,7 @@ module.exports = (sequelize) => {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'ChatSessions',
+        model: 'chat_sessions',
         key: 'id'
       }
     },

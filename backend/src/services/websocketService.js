@@ -70,15 +70,6 @@ class WebSocketService {
         this.sessions.set(sessionId, { socket, session });
         this.metrics.activeSessions++;
         
-        // Debug log for testing
-        console.log('Session details during auth:', JSON.stringify({
-          sessionId,
-          sessionDatabaseId: session.id,
-          sessionDbId: socket.sessionDbId,
-          hasId: !!session.id,
-          sessionType: typeof session,
-          isSequelizeInstance: session.constructor && session.constructor.name
-        }, null, 2));
 
         // Join session room
         socket.join(`session:${sessionId}`);
@@ -217,15 +208,6 @@ class WebSocketService {
 
         const { message, timestamp } = data;
         
-        // Debug log for testing
-        console.log('Processing message - socket state:', {
-          hasSession: !!socket.session,
-          sessionId: socket.sessionId,
-          sessionDbId: socket.sessionDbId,
-          sessionDatabaseId: socket.session?.id,
-          socketKeys: Object.keys(socket).filter(k => k.includes('session')),
-          message: message.substring(0, 50)
-        });
         
         // Save user message
         const userMessage = await Message.create({
